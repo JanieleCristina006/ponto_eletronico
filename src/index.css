@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+.pdf-puro * {
+    color: #000 !important;
+    background-color: #fff !important;
+  }
+
+  .pdf-puro .no-print {
+    display: none !important;
+  }
+  
