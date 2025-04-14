@@ -5,55 +5,146 @@ import { doc, getDoc,setDoc,updateDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { Briefcase, Clock, Download, Activity } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Sidebar } from '../../components/Sidebar'
+
+
 
 export const Home = () => {
   const [showModal, setShowModal] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [nome, setNome] = useState("");
   const [pontos, setPontos] = useState({});
+  const [mensagemCard, setMensagemCard] = useState("");
+  const [tempoCard, setTempoCard] = useState(null); // segundos
+  const [avisado, setAvisado] = useState(false);
+
+
 
 const navigate = useNavigate();
 const pdfRef = useRef();
 
-// Buscar nome e role do usuário
-useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, async (usuario) => {
-    if (usuario) {
-      const docRef = doc(db, "users", usuario.uid);
-      const docSnap = await getDoc(docRef);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (usuario) => {
+      if (usuario) {
+        const docRef = doc(db, "users", usuario.uid);
+        const docSnap = await getDoc(docRef);
 
-      if (docSnap.exists()) {
-        const dados = docSnap.data();
-        setNome(dados.nome || "Usuário");
+        if (docSnap.exists()) {
+          const dados = docSnap.data();
+          setNome(dados.nome || "Usuário");
 
-        if (dados.role === "admin") {
-          setIsAdmin(true);
+          if (dados.role === "admin") {
+            setIsAdmin(true);
+          }
+          await buscarPontos(usuario.uid);
         }
-
-        // 🔁 Busca os pontos quando usuário estiver logado
-        await buscarPontos(usuario.uid);
       }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+ 
+  useEffect(() => {
+    if (!pontos.entrada) return;
+  
+    const intervalo = setInterval(() => {
+      const agora = new Date();
+  
+      function criarData(horaStr) {
+        const [h, m] = horaStr.split(":").map(Number);
+        const data = new Date();
+        data.setHours(h, m, 0, 0);
+        return data;
+      }
+  
+      function minutosParaSegundos(min) {
+        return min * 60;
+      }
+  
+      function calcularRestante(inicio, duracaoMinutos) {
+        const fim = new Date(inicio.getTime() + minutosParaSegundos(duracaoMinutos) * 1000);
+        return Math.max(0, Math.floor((fim - agora) / 1000));
+      }
+  
+      // 1. Entrada → ainda não iniciou almoço
+      if (pontos.entrada && !pontos.inicioAlmoco) {
+        const entrada = criarData(pontos.entrada);
+        const horaAlmocoPrevista = new Date(entrada.getTime() + 4 * 60 * 60 * 1000); // 4h após entrada
+        const segundos = Math.floor((horaAlmocoPrevista - agora) / 1000);
+        const minutos = Math.floor(segundos / 60);
+        setMensagemCard(`Faltam ${minutos} minutos para o almoço`);
+        setTempoCard(segundos);
+      }
+  
+      // 2. Iniciou almoço → ainda não voltou
+      else if (pontos.inicioAlmoco && !pontos.voltaAlmoco) {
+        const inicio = criarData(pontos.inicioAlmoco);
+        const restante = calcularRestante(inicio, 60); // 1h de almoço
+        const minutos = Math.floor(restante / 60);
+        setMensagemCard(`Faltam ${minutos} minutos para voltar do almoço`);
+        setTempoCard(restante);
+      }
+  
+      // 3. Voltou do almoço → ainda não foi para o café
+      else if (pontos.voltaAlmoco && !pontos.inicioCafe) {
+        const volta = criarData(pontos.voltaAlmoco);
+        const horaCafePrevista = new Date(volta.getTime() + 2 * 60 * 60 * 1000); // 2h depois
+        const segundos = Math.floor((horaCafePrevista - agora) / 1000);
+        const minutos = Math.floor(segundos / 60);
+        setMensagemCard(`Faltam ${minutos} minutos para o café`);
+        setTempoCard(segundos);
+      }
+  
+      // 4. Início do café → ainda não voltou
+      else if (pontos.inicioCafe && !pontos.voltaCafe) {
+        const inicio = criarData(pontos.inicioCafe);
+        const restante = calcularRestante(inicio, 15); // 15 min de café
+        const minutos = Math.floor(restante / 60);
+        setMensagemCard(`Faltam ${minutos} minutos para voltar do café`);
+        setTempoCard(restante);
+      }
+  
+      // 5. Voltou do café → ainda não saiu
+      else if (pontos.voltaCafe && !pontos.saida) {
+        const entrada = criarData(pontos.entrada);
+        const fimPrevisto = new Date(entrada.getTime() + 8 * 60 * 60 * 1000); // 8h de jornada
+        const segundos = Math.floor((fimPrevisto - agora) / 1000);
+        const minutos = Math.floor(segundos / 60);
+        setMensagemCard(`Faltam ${minutos} minutos para finalizar sua jornada`);
+        setTempoCard(segundos);
+      }
+  
+      // 6. Jornada completa
+      else if (pontos.saida) {
+        setMensagemCard("Parabéns! Jornada concluída 🥳");
+        setTempoCard(null);
+      }
+  
+    }, 1000);
+  
+    return () => clearInterval(intervalo);
+  }, [pontos]);
+  
+  
+  
+  async function buscarPontos(uid) {
+    if (!uid) return;
+
+    const hoje = new Date();
+    const dataFormatada = hoje.toISOString().split("T")[0];
+
+    const docRef = doc(db, "registros", uid, "dias", dataFormatada);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      setPontos(docSnap.data());
+    } else {
+      setPontos({});
     }
-  });
-
-  return () => unsubscribe();
-}, []);
-
-async function buscarPontos(uid) {
-  if (!uid) return;
-
-  const hoje = new Date();
-  const dataFormatada = hoje.toISOString().split("T")[0];
-
-  const docRef = doc(db, "registros", uid, "dias", dataFormatada);
-  const docSnap = await getDoc(docRef);
-
-  if (docSnap.exists()) {
-    setPontos(docSnap.data());
-  } else {
-    setPontos({});
   }
-}
 
   async function baterPonto() {
     const user = auth.currentUser;
@@ -125,7 +216,6 @@ async function buscarPontos(uid) {
     return `${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}min`;
   }
   
-
   async function gerarPDF() {
     const input = pdfRef.current;
   
@@ -185,163 +275,228 @@ async function buscarPontos(uid) {
     const m = abs % 60;
     return `${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}min`;
   }
+
+  function formatarSegundos(segundos) {
+    if (segundos <= 0) return "00:00:00";
+    
+    const h = Math.floor(segundos / 3600);
+    const m = Math.floor((segundos % 3600) / 60);
+    const s = segundos % 60;
+  
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  function calcularHorasExtras(pontos) {
+    const entrada = horaParaMinutos(pontos.entrada);
+    const saida = horaParaMinutos(pontos.saida);
+  
+    if (!entrada || !saida) return null;
+  
+    const pausaAlmoco = horaParaMinutos(pontos.voltaAlmoco) - horaParaMinutos(pontos.inicioAlmoco || "00:00");
+    const pausaCafe = horaParaMinutos(pontos.voltaCafe) - horaParaMinutos(pontos.inicioCafe || "00:00");
+  
+    const jornadaTotal = saida - entrada;
+    const jornadaLiquida = jornadaTotal - pausaAlmoco - pausaCafe;
+  
+    const excedente = jornadaLiquida - 480; // 480 minutos = 8h
+  
+    return excedente > 0 ? excedente : 0;
+  }
+
+  const dadosGrafico = [
+    { dia: 'Seg', minutos: 480 },
+    { dia: 'Ter', minutos: 450 },
+    { dia: 'Qua', minutos: 500 },
+    { dia: 'Qui', minutos: 470 },
+    { dia: 'Sex', minutos: 495 },
+  ];
   
   
   
 
-  return (
-    <div className="min-h-screen flex bg-gray-100">
+  return(
+    <>
+      
 
-    {/* Sidebar */}
-    <aside className="w-64 bg-[#35122E] text-white hidden md:flex flex-col p-6 space-y-6">
-      <div className="text-2xl font-bold tracking-wide">PontoApp</div>
-      <nav className="space-y-4">
-        <a href="#" className="hover:text-[#D0E4AE]">Dashboard</a>
-        <a href="#" className="hover:text-[#D0E4AE]">Relatórios</a>
-        <a href="#" className="hover:text-[#D0E4AE]">Configurações</a>
-      </nav>
-      <div className="mt-auto text-sm text-gray-300">© 2025 Janiele Dev</div>
-    </aside>
-  
-    {/* Conteúdo principal */}
-    <main className="flex-1 p-6 md:p-10">
-  
-      {/* Header */}
-      <header className="flex flex-col md:flex-row justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-[#6B256F]">Bem-vinda, Janiele!</h1>
-          <p className="text-gray-500">Resumo do seu dia</p>
-        </div>
-        {isAdmin && (
-          <button
-            onClick={() => navigate("/admin/registrar")}
-            className="mt-4 md:mt-0 bg-[#6B256F] hover:bg-[#582158] text-white font-semibold py-2 px-5 rounded-xl shadow"
-          >
-            Acessar Painel Administrativo
-          </button>
-        )}
-      </header>
-  
-      {/* Grid de cards principais */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-  
-        {/* Status Entrada/Saída */}
-        <div className="bg-white p-6 rounded-2xl shadow-md border-l-4 border-[#6B256F]">
-          <h2 className="text-lg font-semibold mb-2 text-gray-800">Status de Entrada/Saída</h2>
-          {pontos.entrada && pontos.saida ? (
-            (() => {
-              const diferenca = compararEntradaSaida(pontos);
-              return (
-                <>
-                  <p className={`font-medium ${diferenca.entrada >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    Entrada: {formatarMinutosParaHoraEmin(diferenca.entrada)} {diferenca.entrada >= 0 ? "adiantado" : "atrasado"}
-                  </p>
-                  <p className={`font-medium ${diferenca.saida >= 0 ? "text-blue-600" : "text-red-600"}`}>
-                    Saída: {formatarMinutosParaHoraEmin(diferenca.saida)} {diferenca.saida >= 0 ? "mais tarde" : "mais cedo"}
-                  </p>
-                </>
-              );
-            })()
-          ) : (
-            <p className="text-gray-500">Ponto incompleto para calcular horário</p>
-          )}
-        </div>
-  
-        {/* Cronômetro de almoço */}
-        <div className="bg-[#D0E4AE] p-6 rounded-2xl shadow-md flex flex-col justify-between">
-          <div className="text-2xl font-bold text-[#194B32] mb-2">00:30:00</div>
-          <p className="text-[#194B32] mb-4">Faltam 30 minutos para o almoço</p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="bg-[#194B32] hover:bg-green-800 text-white font-semibold py-2 px-4 rounded-xl"
-          >
-            Notificar no WhatsApp
-          </button>
-        </div>
-  
-        {/* Registro de Ponto */}
-        <div className="bg-white p-6 rounded-2xl shadow-md text-center">
-          <h2 className="text-lg font-semibold text-[#35122E] mb-4">Registro de Ponto</h2>
-          <button
-            onClick={baterPonto}
-            className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl"
-          >
-            Bater Ponto
-          </button>
-        </div>
-      </div>
-  
-      {/* Grid com pontos do dia e jornada */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10">
-  
-        {/* Pontos do Dia */}
-        <div ref={pdfRef} className="bg-white p-6 rounded-2xl shadow-md">
-          <h2 className="text-xl font-bold text-[#35122E] mb-4">Pontos do Dia {new Date().toLocaleDateString()}</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-gray-700">
+    <div className="min-h-screen bg-[#F1F5F9] text-gray-800 font-[Inter]">
+      <div className="flex">
+        {/* Sidebar */}
+        <aside className="w-64 bg-white border-r border-gray-200 p-6 hidden md:flex flex-col gap-8 shadow-sm">
+          <h1 className="text-2xl font-bold text-[#4F46E5]">PontoApp</h1>
+          <nav className="flex flex-col gap-4 text-sm">
+            <a href="#" className="text-gray-700 hover:text-[#4F46E5] font-medium">Dashboard</a>
+            <a href="#" className="text-gray-700 hover:text-[#4F46E5] font-medium">Relatórios</a>
+            <a href="#" className="text-gray-700 hover:text-[#4F46E5] font-medium">Configurações</a>
+          </nav>
+          <div className="mt-auto text-xs text-gray-400">© 2025 Janiele Dev</div>
+        </aside>
+
+        {/* Main */}
+        <main className="flex-1 p-6 md:p-10 space-y-10 w-full">
+          {/* Header */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <p>Entrada: {pontos.entrada || "--:--"}</p>
-              <p>Início Almoço: {pontos.inicioAlmoco || "--:--"}</p>
-              <p>Volta Almoço: {pontos.voltaAlmoco || "--:--"}</p>
+              <h2 className="text-3xl font-semibold">Bem-vinda, {nome}!</h2>
+              <p className="text-sm text-gray-500">Resumo do seu dia</p>
             </div>
-            <div>
-              <p>Início Café: {pontos.inicioCafe || "--:--"}</p>
-              <p>Fim Café: {pontos.voltaCafe || "--:--"}</p>
-              <p className="font-semibold">Saída: {pontos.saida || "--:--"}</p>
+            {isAdmin && (
+              <button
+                onClick={() => navigate("/admin/registrar")}
+                className="bg-[#4F46E5] hover:bg-[#4338CA] text-white px-6 py-2 rounded-lg shadow"
+              >
+                Acessar Painel Administrativo
+              </button>
+            )}
+          </div>
+
+          {/* Cards Resumo Rápido */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm flex items-center gap-4">
+              <Briefcase className="text-[#4F46E5]" />
+              <div>
+                <p className="text-sm text-gray-500">Total de Pontos</p>
+                <p className="text-lg font-bold">{Object.keys(pontos).length}</p>
+              </div>
+            </div>
+            <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm flex items-center gap-4">
+              <Clock className="text-[#10B981]" />
+              <div>
+                <p className="text-sm text-gray-500">Tempo Trabalhado</p>
+                <p className="text-lg font-bold">{pontos.saida ? formatarMinutos(calcularTotalTrabalhado(pontos)) : '--:--'}</p>
+              </div>
+            </div>
+            <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm flex items-center gap-4">
+              <Download className="text-[#6366F1]" />
+              <div>
+                <p className="text-sm text-gray-500">Relatórios</p>
+                <p className="text-lg font-bold">3</p>
+              </div>
+            </div>
+            <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm flex items-center gap-4">
+              <Activity className="text-[#F59E0B]" />
+              <div>
+                <p className="text-sm text-gray-500">Status</p>
+                <p className="text-lg font-bold text-green-600">Online</p>
+              </div>
             </div>
           </div>
-        </div>
-  
-        {/* Resumo da Jornada */}
-        <div className="bg-white p-6 rounded-2xl shadow-md">
-          <h2 className="text-xl font-bold text-[#35122E] mb-4">Resumo de Jornada</h2>
-          {pontos.entrada && pontos.saida ? (
-            <>
-              <p className="text-gray-800 text-lg mb-2">
-                Total trabalhado: <span className="font-bold">
-                  {formatarMinutos(calcularTotalTrabalhado(pontos))}
-                </span>
-              </p>
-              {8 * 60 - calcularTotalTrabalhado(pontos) > 0 ? (
-                <p className="text-red-600 text-lg">
-                  Você ainda deve{" "}
-                  <span className="font-bold">
-                    {formatarMinutos(8 * 60 - calcularTotalTrabalhado(pontos))}
-                  </span>
-                </p>
-              ) : (
-                <p className="text-green-600 text-lg">
-                  Você excedeu{" "}
-                  <span className="font-bold">
-                    {formatarMinutos(Math.abs(8 * 60 - calcularTotalTrabalhado(pontos)))}
-                  </span>
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-gray-500 text-lg">Jornada incompleta</p>
-          )}
-        </div>
-      </div>
-  
-      {/* Botões de Relatório */}
-      <div className="mt-8 flex flex-wrap gap-4">
-        <button
-          onClick={gerarPDF}
-          className="bg-[#9384DB] hover:bg-indigo-600 text-white font-bold py-2 px-5 rounded-xl"
-        >
-          Baixar Relatório do Dia
-        </button>
-        <button
-          className="bg-[#6B256F] hover:bg-[#582158] text-white font-bold py-2 px-5 rounded-xl"
-        >
-          Baixar Relatório Mensal
-        </button>
-      </div>
-  
-    </main>
-    </div>
-   
-   
 
-  );
-};
+          {/* Cards Detalhados */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Status de Entrada/Saída */}
+            <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm">
+              <h3 className="text-base font-semibold mb-2">Status de Entrada/Saída</h3>
+              {pontos.entrada && pontos.saida ? (() => {
+                const diferenca = compararEntradaSaida(pontos);
+                return (
+                  <>
+                    <p className={`text-sm ${diferenca.entrada >= 0 ? "text-green-600" : "text-red-600"}`}>Entrada: {formatarMinutosParaHoraEmin(diferenca.entrada)} {diferenca.entrada >= 0 ? "adiantado" : "atrasado"}</p>
+                    <p className={`text-sm ${diferenca.saida >= 0 ? "text-blue-600" : "text-red-600"}`}>Saída: {formatarMinutosParaHoraEmin(diferenca.saida)} {diferenca.saida >= 0 ? "mais tarde" : "mais cedo"}</p>
+                  </>
+                );
+              })() : <p className="text-sm text-gray-500">Ponto incompleto para calcular horário</p>}
+            </div>
+
+            {/* Próxima Ação */}
+            <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm">
+              <h3 className="text-base font-semibold mb-2">Próxima Ação</h3>
+              {typeof tempoCard === "number" && tempoCard > 0 ? (
+                <>
+                  <p className="text-xl font-bold text-gray-800">{formatarSegundos(tempoCard)}</p>
+                  <p className="text-sm text-gray-500">{mensagemCard}</p>
+                </>
+              ) : <p className="text-sm text-gray-500">Hora da próxima ação! 🚀</p>}
+              <button
+                onClick={() => setShowModal(true)}
+                className="mt-4 w-full bg-[#10B981] hover:bg-[#059669] text-white py-2 rounded-md"
+              >
+                Notificar no WhatsApp
+              </button>
+            </div>
+
+            {/* Jornada */}
+            <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm">
+              <h3 className="text-base font-semibold mb-2">Resumo de Jornada</h3>
+              {pontos.entrada && pontos.saida ? (() => {
+                const total = calcularTotalTrabalhado(pontos);
+                const horasExtras = calcularHorasExtras(pontos);
+                const diferenca = 8 * 60 - total;
+                return (
+                  <>
+                    <p className="text-sm mb-1">Total trabalhado: <strong>{formatarMinutos(total)}</strong></p>
+                    {horasExtras > 0 ? (
+                      <p className="text-sm text-green-600">Você fez <strong>{formatarMinutos(horasExtras)}</strong> de horas extras hoje 💪</p>
+                    ) : (
+                      <p className="text-sm text-red-600">Você ainda deve <strong>{formatarMinutos(Math.abs(diferenca))}</strong></p>
+                    )}
+                  </>
+                );
+              })() : <p className="text-sm text-gray-500">Jornada incompleta</p>}
+            </div>
+          </div>
+
+          {/* Gráfico: Resumo Semanal */}
+<div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm">
+  <h3 className="text-base font-semibold mb-4">Resumo Semanal de Jornada</h3>
+  <ResponsiveContainer width="100%" height={240}>
+    <BarChart data={dadosGrafico} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+      <CartesianGrid strokeDasharray="3 3" />
+      <XAxis dataKey="dia" />
+      <YAxis tickFormatter={(min) => `${Math.floor(min / 60)}h`} />
+      <Tooltip formatter={(value) => `${Math.floor(value / 60)}h ${value % 60}min`} />
+      <Bar dataKey="minutos" fill="#4F46E5" radius={[6, 6, 0, 0]} />
+    </BarChart>
+  </ResponsiveContainer>
+</div>
+
+
+          {/* Relatórios e Pontos */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div ref={pdfRef} className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm">
+              <h3 className="text-base font-semibold mb-3">Pontos do Dia {new Date().toLocaleDateString()}</h3>
+              <div className="grid grid-cols-2 gap-y-2 text-sm">
+                <div>
+                  <p>Entrada: {pontos.entrada || "--:--"}</p>
+                  <p>Início Almoço: {pontos.inicioAlmoco || "--:--"}</p>
+                  <p>Volta Almoço: {pontos.voltaAlmoco || "--:--"}</p>
+                </div>
+                <div>
+                  <p>Início Café: {pontos.inicioCafe || "--:--"}</p>
+                  <p>Fim Café: {pontos.voltaCafe || "--:--"}</p>
+                  <p>Saída: {pontos.saida || "--:--"}</p>
+                </div>
+              </div>
+              <button
+                onClick={baterPonto}
+                className="mt-6 bg-[#3B82F6] hover:bg-[#2563EB] text-white py-2 w-full rounded-md"
+              >
+                Registrar Novo Ponto
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <button
+                onClick={gerarPDF}
+                className="bg-[#6366F1] hover:bg-[#4F46E5] text-white py-3 rounded-md shadow"
+              >
+                Baixar Relatório do Dia
+              </button>
+              <button
+                className="bg-[#A855F7] hover:bg-[#9333EA] text-white py-3 rounded-md shadow"
+              >
+                Baixar Relatório Mensal
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+ 
+ 
+
+
+    </>
+  )
+
+}

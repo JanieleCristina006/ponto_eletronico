@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Home } from "./pages/Home";
 import { Login } from "./components/Login";
 import { RegistrarUsuario } from "./admin/RegistroDeUsuarios/RegistrarUsuario";
+import ListaUsuarios from "./admin/components/pages/ListarUsuarios";
 
 // Firebase
 import { auth, db } from "./FirebaseConection";
@@ -44,6 +45,7 @@ export const RoutesApp = () => {
       <Routes>
         {/* Rota pública (login) */}
         <Route path="/" element={<Login />} />
+        <Route path="/admin/lista-usuarios" element={<ListaUsuarios />} />
 
         {/* Rotas protegidas - acessadas só se o usuário estiver logado */}
         {usuario ? (
