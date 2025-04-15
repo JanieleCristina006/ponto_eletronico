@@ -14,6 +14,7 @@ import { RegistrarUsuario } from "./admin/RegistroDeUsuarios/RegistrarUsuario";
 import ListaUsuarios from "./admin/components/pages/ListarUsuarios";
 import { LayoutPrivado } from "./components/LayoutPrivado";
 import { Relatorio } from "./pages/Relatorio";
+import {Perfil} from './pages/Perfil'
 
 
 export const RoutesApp = () => {
@@ -52,7 +53,8 @@ export const RoutesApp = () => {
       {usuario && (
         <Route path="/" element={<LayoutPrivado />}>
           <Route path="home" element={<Home />} />
-          <Route path="relatorio" element={<Relatorio />} /> {/* 👈 agora dentro do LayoutPrivado */}
+          <Route path="relatorio" element={<Relatorio />} /> 
+          <Route path="perfil" element={<Perfil />} />
   
           {cargo === "admin" && (
             <>

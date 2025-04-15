@@ -169,7 +169,6 @@ const pdfRef = useRef();
     return () => clearInterval(intervalo);
   }, [pontos]);
   
-  
   function getDiasUteisDoMes() {
     const hoje = new Date();
     const ano = hoje.getFullYear();
@@ -294,22 +293,27 @@ const pdfRef = useRef();
     return `${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}min`;
   }
   
+ 
+
   function compararEntradaSaida(pontos) {
     const entradaEsperada = "08:00";
     const saidaEsperada = "18:00";
   
+    const entradaReal = pontos.entrada;
+    const saidaReal = pontos.saida;
+  
+    if (!entradaReal || !saidaReal) return null;
+  
     const entradaEsperadaMin = horaParaMinutos(entradaEsperada);
     const saidaEsperadaMin = horaParaMinutos(saidaEsperada);
-  
-    const entradaRealMin = pontos.entrada ? horaParaMinutos(pontos.entrada) : null;
-    const saidaRealMin = pontos.saida ? horaParaMinutos(pontos.saida) : null;
+    const entradaRealMin = horaParaMinutos(entradaReal);
+    const saidaRealMin = horaParaMinutos(saidaReal);
   
     return {
-      entrada: entradaRealMin !== null ? entradaEsperadaMin - entradaRealMin : null,
-      saida: saidaRealMin !== null ? saidaRealMin - saidaEsperadaMin : null,
+      entrada: entradaEsperadaMin - entradaRealMin, // positivo = adiantado, negativo = atrasado
+      saida: saidaRealMin - saidaEsperadaMin,        // positivo = mais tarde, negativo = mais cedo
     };
   }
-  
   
 
   function formatarMinutosParaHoraEmin(minutos) {

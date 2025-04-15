@@ -10,13 +10,13 @@ import {
 } from "react-icons/fi";
 import logo from "../../assets/logo.png";
 import { useNavigate } from "react-router-dom";
-import { signOut } from "firebase/auth"; // 👈 importa o signOut
-import { auth } from "../../FirebaseConection"; // 👈 seu arquivo de conexão com Firebase
+import { signOut } from "firebase/auth";
+import { auth } from "../../FirebaseConection";
 
 const itensMenu = [
   { nome: "Início", icone: <FiHome />, rota: "/home" },
   { nome: "Perfil", icone: <FiUser />, rota: "/perfil" },
-  { nome: "Configurações", icone: <FiSettings />, rota: "/configuracoes" },
+  // { nome: "Configurações", icone: <FiSettings />, rota: "/configuracoes" },
   { nome: "Relatório", icone: <FiFileText />, rota: "/relatorio" },
 ];
 
@@ -45,11 +45,11 @@ export const Sidebar = ({ largura, setLargura, sidebarCompacta, setSidebarCompac
     setSidebarCompacta(!sidebarCompacta);
   };
 
-  // 🔐 Logout do Firebase + redirecionamento
+  
   const handleLogout = async () => {
     try {
-      await signOut(auth); // desloga do Firebase
-      navigate("/login"); // redireciona para a tela de login
+      await signOut(auth);
+      navigate("/login"); 
     } catch (error) {
       console.error("Erro ao deslogar:", error);
     }

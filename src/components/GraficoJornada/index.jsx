@@ -1,36 +1,18 @@
 import React, { useState } from "react";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 
-const todasAsSemanas = {
-  semana1: [
-    { dia: "Seg", minutos: 480,faltou: false },
-    { dia: "Ter", minutos:   0,faltou: true },
-    { dia: "Qua", minutos: 520,faltou: false },
-    { dia: "Qui", minutos: 0,faltou: true },
-    { dia: "Sex", minutos: 600,faltou: false },
-  ],
-  semana2: [
-    { dia: "Seg", minutos: 300,faltou: false },
-    { dia: "Ter", minutos: 510,faltou: false },
-    { dia: "Qua", minutos:   0,faltou: true },
-    { dia: "Qui", minutos: 450,faltou: false },
-    { dia: "Sex", minutos: 400,faltou: false },
-  ],
-};
+import { useJornadaSemanal } from "../../Hooks/useJornadaSemanal";
 
 export const GraficoJornada = () => {
-  const [semanaSelecionada, setSemanaSelecionada] = useState("semana1");
+  const [semanaSelecionada, setSemanaSelecionada] = useState(0); // 0 = atual
+  const dados = useJornadaSemanal(semanaSelecionada);
 
-  // ⬇️ AQUI ENTRA O CÁLCULO DO TOTAL DE HORAS EXTRAS
-  const totalExtras = todasAsSemanas[semanaSelecionada].reduce((acc, item) => {
+  if (!dados.length) return <p>Carregando gráfico...</p>;
+
+  const totalExtras = dados.reduce((acc, item) => {
     const extra = item.minutos - 480;
     return extra > 0 ? acc + extra : acc;
   }, 0);
@@ -40,76 +22,101 @@ export const GraficoJornada = () => {
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-md">
-      {/* Topo com título, total de extras e select */}
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-[#35122E]">
-          Jornada Semanal
-        </h3>
-
-        <div className="flex items-center gap-4">
-          <p className="text-sm text-[#6B256F] font-medium whitespace-nowrap">
-             Horas Extras: {horasExtras}h {minutosExtras}min
-          </p>
-
-          <select
-            className="border border-gray-300 text-sm rounded-md px-2 py-1"
-            value={semanaSelecionada}
-            onChange={(e) => setSemanaSelecionada(e.target.value)}
-          >
-            <option value="semana1">Semana 01</option>
-            <option value="semana2">Semana 02</option>
-          </select>
+    {/* Cabeçalho com Título, Legenda e Filtro */}
+    <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+      {/* Título + legenda */}
+      <div className="flex flex-col gap-1">
+        <h3 className="text-lg font-semibold text-[#35122E]">Jornada Semanal</h3>
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-full bg-[#6B256F]" />
+            <span className="text-gray-600">Presença</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-full bg-black" />
+            <span className="text-gray-600">Falta</span>
+          </div>
         </div>
       </div>
-
-      {/* Gráfico */}
-      <ResponsiveContainer width="100%" height={250}>
-        <BarChart
-          data={todasAsSemanas[semanaSelecionada]}
-          margin={{ top: 10, right: 30, left: 0, bottom: 5 }}
-          barCategoryGap={25}
+  
+      {/* Horas extras + filtro de semana */}
+      <div className="flex items-center gap-4">
+        <p className="text-sm text-[#6B256F] font-medium">
+          Horas Extras: {horasExtras}h {minutosExtras}min
+        </p>
+        <select
+          className="border border-gray-300 text-sm rounded-md px-2 py-1"
+          value={semanaSelecionada}
+          onChange={(e) => setSemanaSelecionada(Number(e.target.value))}
         >
-          <CartesianGrid strokeDasharray="2 4" vertical={false} />
-          <XAxis dataKey="dia" tick={{ fontSize: 12 }} />
-          <YAxis
-            tickFormatter={(min) => `${Math.floor(min / 60)}h`}
-            tick={{ fontSize: 12 }}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          <Bar
-            dataKey="minutos"
-            barSize={16}
-            radius={[6, 6, 0, 0]}
-            shape={(props) => {
-              const { x, y, width, height, payload } = props;
-
-              // Se faltou, força uma barrinha pequena visível
-              const isFaltou = payload.faltou;
-              const adjustedHeight = isFaltou ? 10 : height;
-              const adjustedY = isFaltou ? y + (height - 10) : y;
-              const color = isFaltou ? "#000000" : "#6B256F";
-
-              return (
-                <rect
-                  x={x}
-                  y={adjustedY}
-                  width={width}
-                  height={adjustedHeight}
-                  rx={6}
-                  ry={6}
-                  fill={color}
-                />
-              );
-            }}
-         />
-
-
-        </BarChart>
-      </ResponsiveContainer>
+          <option value={0}>Semana Atual</option>
+          <option value={1}>Semana Passada</option>
+          <option value={2}>2 Semanas Atrás</option>
+        </select>
+      </div>
     </div>
+  
+    {/* Gráfico */}
+    <ResponsiveContainer width="100%" height={250}>
+      <BarChart
+        data={dados}
+        margin={{ top: 10, right: 30, left: 0, bottom: 5 }}
+        barCategoryGap={25}
+      >
+        <CartesianGrid strokeDasharray="2 4" vertical={false} />
+        <XAxis dataKey="dia" />
+        <YAxis
+          tickFormatter={(min) => `${Math.floor(min / 60)}h`}
+          domain={[0, 600]}
+        />
+        <Tooltip content={<CustomTooltip />} />
+        <ReferenceLine
+          y={480}
+          stroke="#10B981"
+          strokeDasharray="4 4"
+          label={{
+            value: "Meta (8h)",
+            position: "right",
+            fill: "#10B981",
+            fontSize: 12,
+          }}
+        />
+  
+        <Bar
+          dataKey="minutos"
+          shape={({ x, y, width, height, payload }) => {
+            const isFaltou = payload.faltou;
+            const minHeight = 8;
+            const finalHeight = height < minHeight ? minHeight : height;
+            const finalY = height < minHeight ? y + (height - minHeight) : y;
+            const color = isFaltou ? "#000000" : "#6B256F";
+  
+            return (
+              <rect
+                x={x}
+                y={finalY}
+                width={width}
+                height={finalHeight}
+                rx={6}
+                ry={6}
+                fill={color}
+                style={{
+                  stroke: "#35122E",
+                  strokeWidth: 0.3,
+                  filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.15))",
+                }}
+              />
+            );
+          }}
+          radius={[6, 6, 0, 0]}
+          barSize={20}
+        />
+      </BarChart>
+    </ResponsiveContainer>
+  </div>
+   
   );
 };
-
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -142,4 +149,3 @@ const CustomTooltip = ({ active, payload, label }) => {
 
   return null;
 };
-
