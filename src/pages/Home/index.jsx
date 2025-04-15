@@ -1,14 +1,43 @@
-import React, { useEffect, useState,useRef  } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "../../FirebaseConection";
-import { doc, getDoc,setDoc,updateDoc } from "firebase/firestore";
-import { useNavigate } from "react-router-dom";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
-import { Briefcase, Clock, Download, Activity } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Sidebar } from '../../components/Sidebar'
+// React
+import React, { useEffect, useRef, useState } from "react";
 
+// Firebase
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { auth, db } from "../../FirebaseConection";
+
+// Navegação
+import { useNavigate } from "react-router-dom";
+
+// Bibliotecas externas
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import { FiXCircle, FiTrendingUp, FiLogIn,
+  FiLogOut,
+  FiCoffee,
+  FiSun,
+  FiMoon,
+  FiClock,
+} from 'react-icons/fi';
+import { BiTimeFive } from "react-icons/bi";
+
+import Logo from '../../assets/image.png'
+
+
+// Ícones
+import { Clock } from "lucide-react";
+
+
+
+// Componentes
+import { AcoesRelatorio } from "../../components/AcoesRelatorio";
+import { CardProximaAcao } from "../../components/CardProximaAcao";
+import { CardRelatorioPonto } from "../../components/CardRelatorioPonto";
+import { CardResumo } from "../../components/CardResumo";
+import { CardResumoJornada } from "../../components/CardResumoJornada";
+import { GraficoJornada } from "../../components/GraficoJornada";
+import { Header } from "../../components/Header";
+import { StatusEntradaSaida } from "../../components/StatusEntradaSaida";
 
 
 export const Home = () => {
@@ -17,8 +46,9 @@ export const Home = () => {
   const [nome, setNome] = useState("");
   const [pontos, setPontos] = useState({});
   const [mensagemCard, setMensagemCard] = useState("");
-  const [tempoCard, setTempoCard] = useState(null); // segundos
-  const [avisado, setAvisado] = useState(false);
+  const [tempoCard, setTempoCard] = useState(null);
+  const [tempoTrabalhadoAtual, setTempoTrabalhadoAtual] = useState(null);
+  const [totalFaltas, setTotalFaltas] = useState(0);
 
 
 
@@ -43,7 +73,16 @@ const pdfRef = useRef();
       }
     });
 
+    async function verificarFaltas() {
+      const user = auth.currentUser;
+      if (!user) return;
+  
+      const totalFaltas = await contarFaltas(user.uid);
+      setTotalFaltas(totalFaltas);
+    }
+
     return () => unsubscribe();
+    verificarFaltas();
   }, []);
 
  
@@ -69,56 +108,58 @@ const pdfRef = useRef();
         return Math.max(0, Math.floor((fim - agora) / 1000));
       }
   
-      // 1. Entrada → ainda não iniciou almoço
+      // 🔄 Tempo trabalhado ao vivo
+      if (pontos.entrada && !pontos.saida) {
+        const entrada = criarData(pontos.entrada);
+  
+        let pausas = 0;
+        if (pontos.inicioAlmoco && pontos.voltaAlmoco) {
+          pausas += horaParaMinutos(pontos.voltaAlmoco) - horaParaMinutos(pontos.inicioAlmoco);
+        }
+        if (pontos.inicioCafe && pontos.voltaCafe) {
+          pausas += horaParaMinutos(pontos.voltaCafe) - horaParaMinutos(pontos.inicioCafe);
+        }
+  
+        const diffMinutos = Math.floor((agora - entrada) / 60000);
+        const tempoReal = diffMinutos - pausas;
+        setTempoTrabalhadoAtual(tempoReal > 0 ? tempoReal : 0);
+      }
+  
+      // Mensagens de ações
       if (pontos.entrada && !pontos.inicioAlmoco) {
         const entrada = criarData(pontos.entrada);
-        const horaAlmocoPrevista = new Date(entrada.getTime() + 4 * 60 * 60 * 1000); // 4h após entrada
+        const horaAlmocoPrevista = new Date(entrada.getTime() + 4 * 60 * 60 * 1000);
         const segundos = Math.floor((horaAlmocoPrevista - agora) / 1000);
         const minutos = Math.floor(segundos / 60);
         setMensagemCard(`Faltam ${minutos} minutos para o almoço`);
         setTempoCard(segundos);
-      }
-  
-      // 2. Iniciou almoço → ainda não voltou
-      else if (pontos.inicioAlmoco && !pontos.voltaAlmoco) {
+      } else if (pontos.inicioAlmoco && !pontos.voltaAlmoco) {
         const inicio = criarData(pontos.inicioAlmoco);
-        const restante = calcularRestante(inicio, 60); // 1h de almoço
+        const restante = calcularRestante(inicio, 60);
         const minutos = Math.floor(restante / 60);
         setMensagemCard(`Faltam ${minutos} minutos para voltar do almoço`);
         setTempoCard(restante);
-      }
-  
-      // 3. Voltou do almoço → ainda não foi para o café
-      else if (pontos.voltaAlmoco && !pontos.inicioCafe) {
+      } else if (pontos.voltaAlmoco && !pontos.inicioCafe) {
         const volta = criarData(pontos.voltaAlmoco);
-        const horaCafePrevista = new Date(volta.getTime() + 2 * 60 * 60 * 1000); // 2h depois
+        const horaCafePrevista = new Date(volta.getTime() + 2 * 60 * 60 * 1000);
         const segundos = Math.floor((horaCafePrevista - agora) / 1000);
         const minutos = Math.floor(segundos / 60);
         setMensagemCard(`Faltam ${minutos} minutos para o café`);
         setTempoCard(segundos);
-      }
-  
-      // 4. Início do café → ainda não voltou
-      else if (pontos.inicioCafe && !pontos.voltaCafe) {
+      } else if (pontos.inicioCafe && !pontos.voltaCafe) {
         const inicio = criarData(pontos.inicioCafe);
-        const restante = calcularRestante(inicio, 15); // 15 min de café
+        const restante = calcularRestante(inicio, 15);
         const minutos = Math.floor(restante / 60);
         setMensagemCard(`Faltam ${minutos} minutos para voltar do café`);
         setTempoCard(restante);
-      }
-  
-      // 5. Voltou do café → ainda não saiu
-      else if (pontos.voltaCafe && !pontos.saida) {
+      } else if (pontos.voltaCafe && !pontos.saida) {
         const entrada = criarData(pontos.entrada);
-        const fimPrevisto = new Date(entrada.getTime() + 8 * 60 * 60 * 1000); // 8h de jornada
+        const fimPrevisto = new Date(entrada.getTime() + 8 * 60 * 60 * 1000);
         const segundos = Math.floor((fimPrevisto - agora) / 1000);
         const minutos = Math.floor(segundos / 60);
         setMensagemCard(`Faltam ${minutos} minutos para finalizar sua jornada`);
         setTempoCard(segundos);
-      }
-  
-      // 6. Jornada completa
-      else if (pontos.saida) {
+      } else if (pontos.saida) {
         setMensagemCard("Parabéns! Jornada concluída 🥳");
         setTempoCard(null);
       }
@@ -128,6 +169,43 @@ const pdfRef = useRef();
     return () => clearInterval(intervalo);
   }, [pontos]);
   
+  
+  function getDiasUteisDoMes() {
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = hoje.getMonth();
+  
+    const diasUteis = [];
+  
+    const totalDias = new Date(ano, mes + 1, 0).getDate();
+  
+    for (let dia = 1; dia <= totalDias; dia++) {
+      const data = new Date(ano, mes, dia);
+      const diaSemana = data.getDay(); // 0 = Domingo, 6 = Sábado
+  
+      if (diaSemana !== 0 && diaSemana !== 6) {
+        const dataFormatada = data.toISOString().split("T")[0];
+        diasUteis.push(dataFormatada);
+      }
+    }
+  
+    return diasUteis;
+  }
+
+  async function contarFaltas(uid) {
+    const diasUteis = getDiasUteisDoMes();
+    let faltas = 0;
+  
+    for (const dia of diasUteis) {
+      const docRef = doc(db, "registros", uid, "dias", dia);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) {
+        faltas++;
+      }
+    }
+  
+    return faltas;
+  }
   
   
   async function buscarPontos(uid) {
@@ -216,58 +294,23 @@ const pdfRef = useRef();
     return `${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}min`;
   }
   
-  async function gerarPDF() {
-    const input = pdfRef.current;
-  
-    if (!input) return;
-  
-    // Adiciona classe que limpa estilos visuais incompatíveis
-    input.classList.add("pdf-puro");
-  
-    try {
-      const canvas = await html2canvas(input, {
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
-  
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF();
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-  
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save("relatorio-do-dia.pdf");
-    } catch (error) {
-      console.error("Erro ao gerar PDF:", error);
-    } finally {
-      // Remove a classe depois de gerar
-      input.classList.remove("pdf-puro");
-    }
-  }
-
   function compararEntradaSaida(pontos) {
     const entradaEsperada = "08:00";
-    const saidaEsperada = "17:00";
+    const saidaEsperada = "18:00";
   
-    const entradaReal = pontos.entrada;
-    const saidaReal = pontos.saida;
+    const entradaEsperadaMin = horaParaMinutos(entradaEsperada);
+    const saidaEsperadaMin = horaParaMinutos(saidaEsperada);
   
-    if (!entradaReal || !saidaReal) return null;
-  
-    const minutosEntradaEsperada = horaParaMinutos(entradaEsperada);
-    const minutosSaidaEsperada = horaParaMinutos(saidaEsperada);
-    const minutosEntradaReal = horaParaMinutos(entradaReal);
-    const minutosSaidaReal = horaParaMinutos(saidaReal);
-  
-    const diferencaEntrada = minutosEntradaEsperada - minutosEntradaReal;
-    const diferencaSaida = minutosSaidaReal - minutosSaidaEsperada;
+    const entradaRealMin = pontos.entrada ? horaParaMinutos(pontos.entrada) : null;
+    const saidaRealMin = pontos.saida ? horaParaMinutos(pontos.saida) : null;
   
     return {
-      entrada: diferencaEntrada,
-      saida: diferencaSaida,
+      entrada: entradaRealMin !== null ? entradaEsperadaMin - entradaRealMin : null,
+      saida: saidaRealMin !== null ? saidaRealMin - saidaEsperadaMin : null,
     };
   }
+  
+  
 
   function formatarMinutosParaHoraEmin(minutos) {
     const abs = Math.abs(minutos);
@@ -303,6 +346,29 @@ const pdfRef = useRef();
     return excedente > 0 ? excedente : 0;
   }
 
+  function calcularTempoTrabalhadoAoVivo(pontos) {
+    const agora = new Date();
+    const [h, m] = pontos.entrada.split(":").map(Number);
+    const entrada = new Date();
+    entrada.setHours(h, m, 0, 0);
+  
+    let pausas = 0;
+  
+    if (pontos.inicioAlmoco && pontos.voltaAlmoco) {
+      pausas += horaParaMinutos(pontos.voltaAlmoco) - horaParaMinutos(pontos.inicioAlmoco);
+    }
+  
+    if (pontos.inicioCafe && pontos.voltaCafe) {
+      pausas += horaParaMinutos(pontos.voltaCafe) - horaParaMinutos(pontos.inicioCafe);
+    }
+  
+    const diffMinutos = Math.floor((agora - entrada) / 60000);
+    const tempoReal = diffMinutos - pausas;
+  
+    return tempoReal > 0 ? tempoReal : 0;
+  }
+  
+
   const dadosGrafico = [
     { dia: 'Seg', minutos: 480 },
     { dia: 'Ter', minutos: 450 },
@@ -311,189 +377,136 @@ const pdfRef = useRef();
     { dia: 'Sex', minutos: 495 },
   ];
   
-  
-  
-
   return(
     <>
-      
+         <div className="flex-1 p-6 md:p-10 space-y-10 w-full bg-[#F8FAFC]">
+            {/* Header */}
+            <Header
+              nome={nome}
+              isAdmin={isAdmin}
+              onClickAdmin={() => navigate("/admin/registrar")}
+            />
 
-    <div className="min-h-screen bg-[#F1F5F9] text-gray-800 font-[Inter]">
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-gray-200 p-6 hidden md:flex flex-col gap-8 shadow-sm">
-          <h1 className="text-2xl font-bold text-[#4F46E5]">PontoApp</h1>
-          <nav className="flex flex-col gap-4 text-sm">
-            <a href="#" className="text-gray-700 hover:text-[#4F46E5] font-medium">Dashboard</a>
-            <a href="#" className="text-gray-700 hover:text-[#4F46E5] font-medium">Relatórios</a>
-            <a href="#" className="text-gray-700 hover:text-[#4F46E5] font-medium">Configurações</a>
-          </nav>
-          <div className="mt-auto text-xs text-gray-400">© 2025 Janiele Dev</div>
-        </aside>
+            {/* Grid principal com Pontos do Dia + Cards Resumo Rápido */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+              
+              {/* Pontos do Dia */}
+              <div className="bg-white shadow-md rounded-2xl p-6 xl:col-span-2 flex flex-col lg:flex-row items-center justify-between gap-8">
+                  {/* Texto e pontos */}
+                  <div className="flex-1">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                      Pontos do Dia {new Date().toLocaleDateString()}
+                    </h2>
 
-        {/* Main */}
-        <main className="flex-1 p-6 md:p-10 space-y-10 w-full">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h2 className="text-3xl font-semibold">Bem-vinda, {nome}!</h2>
-              <p className="text-sm text-gray-500">Resumo do seu dia</p>
-            </div>
-            {isAdmin && (
-              <button
-                onClick={() => navigate("/admin/registrar")}
-                className="bg-[#4F46E5] hover:bg-[#4338CA] text-white px-6 py-2 rounded-lg shadow"
-              >
-                Acessar Painel Administrativo
-              </button>
-            )}
-          </div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm text-gray-600">
+                      <p className="flex items-center gap-2">
+                        <FiLogIn className="text-[#4F46E5]" />
+                        Entrada: <span className="font-medium text-gray-800">{pontos.entrada || "--"}</span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <FiSun className="text-yellow-500" />
+                        Início Almoço: <span className="font-medium text-gray-800">{pontos.inicioAlmoco || "--"}</span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <FiSun className="text-yellow-500" />
+                        Volta Almoço: <span className="font-medium text-gray-800">{pontos.voltaAlmoco || "--"}</span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <FiCoffee className="text-orange-500" />
+                        Início Café: <span className="font-medium text-gray-800">{pontos.inicioCafe || "--"}</span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <FiCoffee className="text-orange-500" />
+                        Fim Café: <span className="font-medium text-gray-800">{pontos.fimCafe || "--"}</span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <FiLogOut className="text-red-500" />
+                        Saída: <span className="font-medium text-gray-800">{pontos.saida || "--"}</span>
+                      </p>
+                    </div>
 
-          {/* Cards Resumo Rápido */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm flex items-center gap-4">
-              <Briefcase className="text-[#4F46E5]" />
-              <div>
-                <p className="text-sm text-gray-500">Total de Pontos</p>
-                <p className="text-lg font-bold">{Object.keys(pontos).length}</p>
+                    <button
+                      onClick={baterPonto}
+                      className="mt-6 inline-flex items-center gap-2 bg-[#4F46E5] hover:bg-indigo-700 transition-colors text-white font-medium py-2 px-4 rounded-lg shadow"
+                    >
+                      <FiClock className="w-5 h-5" />
+                      Registrar Ponto
+                    </button>
+                  </div>
+
+                  {/* Ilustração */}
+                  <div className="hidden lg:block w-44 xl:w-52">
+                    <img
+                      src={Logo}
+                      alt="Ilustração ponto eletrônico"
+                      className="w-full h-auto rounded-xl"
+                    />
+                  </div>
+              </div>
+
+              {/* Cards Resumo Rápido (vertical alinhado com o card principal) */}
+              <div className="flex flex-col gap-4 h-full self-stretch">
+              <CardResumo
+                  icone={<BiTimeFive className="text-xl" />}
+                  titulo="Tempo Trabalhado"
+                  valor={
+                    pontos.saida
+                      ? formatarMinutos(calcularTotalTrabalhado(pontos))
+                      : tempoTrabalhadoAtual !== null
+                        ? formatarMinutos(tempoTrabalhadoAtual)
+                        : "--:--"
+                  }
+                  corIcone="text-[#10B981]"
+              />
+
+
+              <CardResumo
+                icone={<FiXCircle className="text-xl" />}
+                titulo="Faltas"
+                valor={`${totalFaltas} ${totalFaltas === 1 ? "dia" : "dias"}`}
+                corIcone="text-[#EF4444]"
+              />
+
+
+              <CardResumo
+                icone={<FiTrendingUp className="text-xl" />}
+                titulo="Horas Extras"
+                valor={
+                  pontos.saida
+                    ? formatarMinutos(calcularHorasExtras(pontos))
+                    : "0h 00min"
+                }
+                corIcone="text-[#6366F1]"
+              />
+
               </div>
             </div>
-            <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm flex items-center gap-4">
-              <Clock className="text-[#10B981]" />
-              <div>
-                <p className="text-sm text-gray-500">Tempo Trabalhado</p>
-                <p className="text-lg font-bold">{pontos.saida ? formatarMinutos(calcularTotalTrabalhado(pontos)) : '--:--'}</p>
-              </div>
-            </div>
-            <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm flex items-center gap-4">
-              <Download className="text-[#6366F1]" />
-              <div>
-                <p className="text-sm text-gray-500">Relatórios</p>
-                <p className="text-lg font-bold">3</p>
-              </div>
-            </div>
-            <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm flex items-center gap-4">
-              <Activity className="text-[#F59E0B]" />
-              <div>
-                <p className="text-sm text-gray-500">Status</p>
-                <p className="text-lg font-bold text-green-600">Online</p>
-              </div>
-            </div>
-          </div>
 
-          {/* Cards Detalhados */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Status de Entrada/Saída */}
-            <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm">
-              <h3 className="text-base font-semibold mb-2">Status de Entrada/Saída</h3>
-              {pontos.entrada && pontos.saida ? (() => {
-                const diferenca = compararEntradaSaida(pontos);
-                return (
-                  <>
-                    <p className={`text-sm ${diferenca.entrada >= 0 ? "text-green-600" : "text-red-600"}`}>Entrada: {formatarMinutosParaHoraEmin(diferenca.entrada)} {diferenca.entrada >= 0 ? "adiantado" : "atrasado"}</p>
-                    <p className={`text-sm ${diferenca.saida >= 0 ? "text-blue-600" : "text-red-600"}`}>Saída: {formatarMinutosParaHoraEmin(diferenca.saida)} {diferenca.saida >= 0 ? "mais tarde" : "mais cedo"}</p>
-                  </>
-                );
-              })() : <p className="text-sm text-gray-500">Ponto incompleto para calcular horário</p>}
+            {/* Cards Detalhados */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <StatusEntradaSaida
+                pontos={pontos}
+                compararEntradaSaida={compararEntradaSaida}
+                formatarMinutosParaHoraEmin={formatarMinutosParaHoraEmin}
+              />
+              <CardProximaAcao
+                tempoCard={tempoCard}
+                mensagemCard={mensagemCard}
+                onNotificar={() => setShowModal(true)}
+              />
+              <CardResumoJornada
+                pontos={pontos}
+                calcularTotalTrabalhado={calcularTotalTrabalhado}
+                calcularHorasExtras={calcularHorasExtras}
+                formatarMinutos={formatarMinutos}
+              />
             </div>
 
-            {/* Próxima Ação */}
-            <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm">
-              <h3 className="text-base font-semibold mb-2">Próxima Ação</h3>
-              {typeof tempoCard === "number" && tempoCard > 0 ? (
-                <>
-                  <p className="text-xl font-bold text-gray-800">{formatarSegundos(tempoCard)}</p>
-                  <p className="text-sm text-gray-500">{mensagemCard}</p>
-                </>
-              ) : <p className="text-sm text-gray-500">Hora da próxima ação! 🚀</p>}
-              <button
-                onClick={() => setShowModal(true)}
-                className="mt-4 w-full bg-[#10B981] hover:bg-[#059669] text-white py-2 rounded-md"
-              >
-                Notificar no WhatsApp
-              </button>
-            </div>
-
-            {/* Jornada */}
-            <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm">
-              <h3 className="text-base font-semibold mb-2">Resumo de Jornada</h3>
-              {pontos.entrada && pontos.saida ? (() => {
-                const total = calcularTotalTrabalhado(pontos);
-                const horasExtras = calcularHorasExtras(pontos);
-                const diferenca = 8 * 60 - total;
-                return (
-                  <>
-                    <p className="text-sm mb-1">Total trabalhado: <strong>{formatarMinutos(total)}</strong></p>
-                    {horasExtras > 0 ? (
-                      <p className="text-sm text-green-600">Você fez <strong>{formatarMinutos(horasExtras)}</strong> de horas extras hoje 💪</p>
-                    ) : (
-                      <p className="text-sm text-red-600">Você ainda deve <strong>{formatarMinutos(Math.abs(diferenca))}</strong></p>
-                    )}
-                  </>
-                );
-              })() : <p className="text-sm text-gray-500">Jornada incompleta</p>}
-            </div>
-          </div>
-
-          {/* Gráfico: Resumo Semanal */}
-<div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm">
-  <h3 className="text-base font-semibold mb-4">Resumo Semanal de Jornada</h3>
-  <ResponsiveContainer width="100%" height={240}>
-    <BarChart data={dadosGrafico} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-      <CartesianGrid strokeDasharray="3 3" />
-      <XAxis dataKey="dia" />
-      <YAxis tickFormatter={(min) => `${Math.floor(min / 60)}h`} />
-      <Tooltip formatter={(value) => `${Math.floor(value / 60)}h ${value % 60}min`} />
-      <Bar dataKey="minutos" fill="#4F46E5" radius={[6, 6, 0, 0]} />
-    </BarChart>
-  </ResponsiveContainer>
-</div>
-
-
-          {/* Relatórios e Pontos */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div ref={pdfRef} className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm">
-              <h3 className="text-base font-semibold mb-3">Pontos do Dia {new Date().toLocaleDateString()}</h3>
-              <div className="grid grid-cols-2 gap-y-2 text-sm">
-                <div>
-                  <p>Entrada: {pontos.entrada || "--:--"}</p>
-                  <p>Início Almoço: {pontos.inicioAlmoco || "--:--"}</p>
-                  <p>Volta Almoço: {pontos.voltaAlmoco || "--:--"}</p>
-                </div>
-                <div>
-                  <p>Início Café: {pontos.inicioCafe || "--:--"}</p>
-                  <p>Fim Café: {pontos.voltaCafe || "--:--"}</p>
-                  <p>Saída: {pontos.saida || "--:--"}</p>
-                </div>
-              </div>
-              <button
-                onClick={baterPonto}
-                className="mt-6 bg-[#3B82F6] hover:bg-[#2563EB] text-white py-2 w-full rounded-md"
-              >
-                Registrar Novo Ponto
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-4">
-              <button
-                onClick={gerarPDF}
-                className="bg-[#6366F1] hover:bg-[#4F46E5] text-white py-3 rounded-md shadow"
-              >
-                Baixar Relatório do Dia
-              </button>
-              <button
-                className="bg-[#A855F7] hover:bg-[#9333EA] text-white py-3 rounded-md shadow"
-              >
-                Baixar Relatório Mensal
-              </button>
-            </div>
-          </div>
-        </main>
-      </div>
-    </div>
-
+            {/* Gráfico Jornada Semanal */}
+            <GraficoJornada dados={dadosGrafico} />
+         </div>
  
- 
+
 
 
     </>
