@@ -8,7 +8,7 @@ export const Header = ({ nome, isAdmin, onClickAdmin }) => {
         {isAdmin && (
           <button
             onClick={onClickAdmin}
-            className="bg-[#4F46E5] hover:bg-[#4338CA] text-white px-6 py-2 rounded-lg shadow"
+            className="bg-[#4F46E5] hover:bg-[#4338CA] text-white px-6 py-2 rounded-lg shadow cursor-pointer"
           >
             Acessar Painel Administrativo
           </button>

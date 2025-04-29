@@ -162,7 +162,7 @@ export const Login = () => {
           <button
             type="button"
             onClick={handleEsqueceuSenha}
-            className="text-black hover:underline focus:outline-none"
+            className="text-black hover:underline focus:outline-none cursor-pointer"
           >
             Esqueceu a senha?
           </button>
@@ -170,16 +170,16 @@ export const Login = () => {
 
         {/* Botão de login */}
         <button
-  type="submit"
-  className="w-full bg-black hover:bg-gray-800 text-white font-semibold py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-60"
-  disabled={loading || !email || !senha || emailInvalido}
->
-  {loading ? (
-    <ClipLoader size={20} color="#ffffff" />
-  ) : (
-    "Entrar"
-  )}
-</button>
+            type="submit"
+            className="w-full bg-black hover:bg-gray-800 text-white font-semibold py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+            disabled={loading || !email || !senha || emailInvalido}
+        >
+          {loading ? (
+            <ClipLoader size={20} color="#ffffff" />
+          ) : (
+            "Entrar"
+          )}
+        </button>
 
       </form>
     </div>

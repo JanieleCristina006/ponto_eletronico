@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { Outlet } from "react-router-dom";
 
-export const LayoutPrivado = () => {
+export const LayoutPrivado = ({ cargo }) => {
   const [larguraSidebar, setLarguraSidebar] = useState(200);
   const [sidebarCompacta, setSidebarCompacta] = useState(false);
 
@@ -16,12 +16,13 @@ export const LayoutPrivado = () => {
         setLargura={setLarguraSidebar}
         sidebarCompacta={sidebarCompacta}
         setSidebarCompacta={setSidebarCompacta}
+        cargo={cargo}
       />
 
       {/* Main com margem lateral dinâmica */}
       <main
         style={{ marginLeft: `${larguraFinal}px` }}
-        className="transition-all duration-300 p-6 md:p-10 space-y-10"
+        className="transition-all duration-300 p-2 md:p-5 space-y-10"
       >
         <Outlet />
       </main>

@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { collection, getDoc, doc } from "firebase/firestore";
-import { db, auth } from "../FirebaseConection";
+import { auth, db } from "../FirebaseConection";
+import { doc, getDoc } from "firebase/firestore";
 
 const diasDaSemana = ["Seg", "Ter", "Qua", "Qui", "Sex"];
 
 function horaParaMinutos(hora) {
+  if (!hora) return 0;
   const [h, m] = hora.split(":").map(Number);
   return h * 60 + m;
 }
@@ -12,17 +13,28 @@ function horaParaMinutos(hora) {
 function calcularMinutosTrabalhados(pontos) {
   const entrada = horaParaMinutos(pontos.entrada);
   const saida = horaParaMinutos(pontos.saida);
+
   const pausaAlmoco = pontos.voltaAlmoco && pontos.inicioAlmoco
     ? horaParaMinutos(pontos.voltaAlmoco) - horaParaMinutos(pontos.inicioAlmoco)
     : 0;
+
   const pausaCafe = pontos.voltaCafe && pontos.inicioCafe
     ? horaParaMinutos(pontos.voltaCafe) - horaParaMinutos(pontos.inicioCafe)
     : 0;
+
   return saida - entrada - pausaAlmoco - pausaCafe;
+}
+
+function formatarData(data) {
+  return data.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+  });
 }
 
 export function useJornadaSemanal(semanasAtras = 0) {
   const [dados, setDados] = useState([]);
+  const [intervaloSemana, setIntervaloSemana] = useState("");
 
   useEffect(() => {
     async function buscar() {
@@ -30,36 +42,53 @@ export function useJornadaSemanal(semanasAtras = 0) {
       if (!user) return;
 
       const hoje = new Date();
-      hoje.setDate(hoje.getDate() - semanasAtras * 7);
+      hoje.setHours(0, 0, 0, 0);
+      const hojeFormatado = hoje.toISOString().split("T")[0];
 
-      const inicioSemana = new Date(hoje);
-      inicioSemana.setDate(inicioSemana.getDate() - (inicioSemana.getDay() - 1));
+      const inicioSemana = new Date();
+      inicioSemana.setDate(inicioSemana.getDate() - inicioSemana.getDay() + 1 - semanasAtras * 7);
+      inicioSemana.setHours(0, 0, 0, 0);
+
+      const fimSemana = new Date(inicioSemana);
+      fimSemana.setDate(fimSemana.getDate() + 4);
+
+      setIntervaloSemana(`${formatarData(inicioSemana)} - ${formatarData(fimSemana)}${semanasAtras === 0 ? " (Atual)" : ""}`);
 
       const registros = [];
 
       for (let i = 0; i < 5; i++) {
         const dia = new Date(inicioSemana);
         dia.setDate(dia.getDate() + i);
+        dia.setHours(0, 0, 0, 0);
 
-        const dataId = dia.toISOString().split("T")[0];
         const label = diasDaSemana[i];
+        const dataId = dia.toISOString().split("T")[0];
+
+        const atual = dataId === hojeFormatado && semanasAtras === 0;
+        const isFuturo = dia > hoje && semanasAtras === 0;
 
         const docRef = doc(db, "registros", user.uid, "dias", dataId);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
-          const dadosPonto = docSnap.data();
-          if (dadosPonto.entrada && dadosPonto.saida) {
+          const pontos = docSnap.data();
+          if (pontos.entrada && pontos.saida) {
             registros.push({
               dia: label,
-              minutos: calcularMinutosTrabalhados(dadosPonto),
+              minutos: calcularMinutosTrabalhados(pontos),
               faltou: false,
+              atual,
             });
             continue;
           }
         }
 
-        registros.push({ dia: label, minutos: 0, faltou: true });
+        registros.push({
+          dia: label,
+          minutos: isFuturo ? null : 0,
+          faltou: !isFuturo && !atual,
+          atual,
+        });
       }
 
       setDados(registros);
@@ -68,5 +97,5 @@ export function useJornadaSemanal(semanasAtras = 0) {
     buscar();
   }, [semanasAtras]);
 
-  return dados;
+  return { dados, intervaloSemana };
 }

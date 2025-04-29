@@ -3,6 +3,7 @@ import { FiDownload } from "react-icons/fi";
 import { auth, db } from "../../FirebaseConection";
 import { collection, getDocs } from "firebase/firestore";
 import { PDFDownloadLink, Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import IlustracaoVazia from "../../assets/sem-dados.svg"; // substitua com o caminho da imagem
 
 export const Relatorio = () => {
   const hojeFormatado = new Date().toISOString().split("T")[0];
@@ -38,7 +39,7 @@ export const Relatorio = () => {
 
       if (dataDoc >= dataInicio && dataDoc <= dataFim && dataDoc <= hojeFormatado) {
         lista.push({
-          data: dataDoc,
+          data: formatarDataBonita(dataDoc),
           entrada: info.entrada || "--:--",
           inicioAlmoco: info.inicioAlmoco || "--:--",
           voltaAlmoco: info.voltaAlmoco || "--:--",
@@ -61,7 +62,7 @@ export const Relatorio = () => {
 
   const horaParaMinutos = (hora) => {
     if (!hora || hora === "--:--") return 0;
-    const [h, m] = hora.split(":" ).map(Number);
+    const [h, m] = hora.split(":").map(Number);
     return h * 60 + m;
   };
 
@@ -79,6 +80,11 @@ export const Relatorio = () => {
       return `${h}:${m}`;
     }
     return "--:--";
+  };
+
+  const formatarDataBonita = (data) => {
+    const [ano, mes, dia] = data.split("-");
+    return `${dia}/${mes}/${ano}`;
   };
 
   const styles = StyleSheet.create({
@@ -118,10 +124,10 @@ export const Relatorio = () => {
   );
 
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-6xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
-          <span role="img" aria-label="ícone">📊</span> Relatório de Ponto
+          📊 Relatório de Ponto
         </h1>
         {!carregando && dados.length > 0 && (
           <PDFDownloadLink
@@ -134,7 +140,7 @@ export const Relatorio = () => {
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow p-4 mb-6">
+      <div className="bg-white rounded-xl shadow p-6 mb-6">
         <div className="flex flex-wrap gap-6">
           <div className="flex flex-col">
             <label className="text-sm text-gray-600 font-medium mb-1">📅 Data de Início</label>
@@ -143,7 +149,7 @@ export const Relatorio = () => {
               max={hojeFormatado}
               value={dataInicio}
               onChange={(e) => setDataInicio(e.target.value)}
-              className="max-w-[220px] border border-gray-300 rounded-md px-3 py-1 text-sm shadow-sm"
+              className="max-w-[220px] border border-gray-300 rounded-md px-3 py-2 text-sm shadow-sm"
             />
           </div>
           <div className="flex flex-col">
@@ -153,11 +159,11 @@ export const Relatorio = () => {
               max={hojeFormatado}
               value={dataFim}
               onChange={(e) => setDataFim(e.target.value)}
-              className="max-w-[220px] border border-gray-300 rounded-md px-3 py-1 text-sm shadow-sm"
+              className="max-w-[220px] border border-gray-300 rounded-md px-3 py-2 text-sm shadow-sm"
             />
           </div>
         </div>
-        <p className="text-xs text-gray-400 mt-3">Selecione o intervalo de datas para visualizar os registros.</p>
+        <p className="text-xs text-gray-400 mt-4">Selecione o intervalo de datas para visualizar os registros.</p>
       </div>
 
       {!carregando && dados.length > 0 && (
@@ -192,7 +198,14 @@ export const Relatorio = () => {
       )}
 
       {!carregando && dados.length === 0 && (
-        <p className="text-center text-sm text-gray-500 mt-8">Nenhum dado encontrado para o período selecionado.</p>
+        <div className="text-center mt-10">
+          <img
+            src={IlustracaoVazia}
+            alt="Sem dados"
+            className="mx-auto w-60 h-auto mb-4"
+          />
+          <p className="text-sm text-gray-500">Nenhum ponto encontrado nesse período.</p>
+        </div>
       )}
     </div>
   );

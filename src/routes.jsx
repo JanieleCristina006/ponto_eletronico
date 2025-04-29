@@ -1,6 +1,7 @@
 // React
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { GridLoader } from "react-spinners";
 
 // Firebase
 import { onAuthStateChanged } from "firebase/auth";
@@ -10,16 +11,19 @@ import { auth, db } from "./FirebaseConection";
 // Páginas e componentes
 import { Home } from "./pages/Home";
 import { Login } from "./components/Login";
-import { RegistrarUsuario } from "./admin/RegistroDeUsuarios/RegistrarUsuario";
-import ListaUsuarios from "./admin/components/pages/ListarUsuarios";
 import { LayoutPrivado } from "./components/LayoutPrivado";
 import { Relatorio } from "./pages/Relatorio";
-import {Perfil} from './pages/Perfil'
+import { Perfil } from "./pages/Perfil";
+import { PainelAdmin } from "./pages/admin/PainelAdmin";
+import { RelatoriosAdmin } from "./pages/admin/RelatoriosAdmin";
+import { UsuariosAdmin } from "./pages/admin/UsuariosAdmin";
+import { NovoUsuario } from "./pages/admin/NovoUsuario"; // 👈 importa
+
 
 
 export const RoutesApp = () => {
   const [usuario, setUsuario] = useState(null);
-  const [cargo, setCargo] = useState(null); // "admin" ou "funcionario"
+  const [cargo, setCargo] = useState(null);
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
@@ -41,39 +45,45 @@ export const RoutesApp = () => {
     return () => unsubscribe();
   }, []);
 
-  if (carregando) return <div className="text-center p-10">Carregando...</div>;
+  if (carregando) return (
+    <div className="flex w-full h-screen items-center justify-center">
+      <GridLoader size={20} color="#4338CA" />
+    </div>
+  );
 
   return (
     <BrowserRouter>
-    <Routes>
-      {/* Rota pública */}
-      <Route path="/" element={<Login />} />
+      <Routes>
+        {/* Rota pública */}
+        <Route path="/" element={<Login />} />
   
-      {/* Rotas protegidas com LayoutPrivado */}
-      {usuario && (
-        <Route path="/" element={<LayoutPrivado />}>
-          <Route path="home" element={<Home />} />
-          <Route path="relatorio" element={<Relatorio />} /> 
-          <Route path="perfil" element={<Perfil />} />
+        {/* Rotas protegidas com LayoutPrivado */}
+        {usuario && (
+          <Route path="/" element={<LayoutPrivado cargo={cargo} />}>
+            <Route path="home" element={<Home />} />
+            <Route path="relatorio" element={<Relatorio />} />
+            <Route path="perfil" element={<Perfil />} />
   
-          {cargo === "admin" && (
-            <>
-              <Route path="admin/registrar" element={<RegistrarUsuario />} />
-              <Route path="admin/lista-usuarios" element={<ListaUsuarios />} />
-            </>
-          )}
+            {/* 🔥 Nova rota protegida para ADMIN */}
+            {cargo === "admin" && (
+              <>
+                <Route path="admin" element={<PainelAdmin />} />
+                <Route path="/admin/usuarios" element={<UsuariosAdmin />} /> 
+                <Route path="/admin/usuarios/novo" element={<NovoUsuario />} />
+                <Route path="/admin/relatorios" element={<RelatoriosAdmin />} />
+              </>
+            )}
   
-          {/* Rota inválida → redireciona pro /home */}
-          <Route path="*" element={<Navigate to="/home" />} />
-        </Route>
-      )}
+            {/* Rota inválida → redireciona para /home */}
+            <Route path="*" element={<Navigate to="/home" />} />
+          </Route>
+        )}
   
-      {/* Se não estiver logado, qualquer rota redireciona pro login */}
-      {!usuario && (
-        <Route path="*" element={<Navigate to="/" />} />
-      )}
-    </Routes>
-  </BrowserRouter>
-  
+        {/* Se não estiver logado, qualquer rota redireciona pro login */}
+        {!usuario && (
+          <Route path="*" element={<Navigate to="/" />} />
+        )}
+      </Routes>
+    </BrowserRouter>
   );
 };

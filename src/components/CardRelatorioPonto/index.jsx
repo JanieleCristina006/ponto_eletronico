@@ -38,7 +38,7 @@ export const CardRelatorioPonto = ({ pontos, data, pdfRef, onClickBaterPonto }) 
 
       <button
         onClick={onClickBaterPonto}
-        className="mt-6 bg-[#3B82F6] hover:bg-[#2563EB] text-white py-2 w-full rounded-md transition-transform hover:scale-105"
+        className="mt-6 cursor-pointer bg-[#3B82F6] hover:bg-[#2563EB] text-white py-2 w-full rounded-md transition-transform hover:scale-105"
       >
         Registrar Novo Ponto
       </button>
