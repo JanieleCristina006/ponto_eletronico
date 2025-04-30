@@ -22,7 +22,7 @@ export const CardProgressoJornada = ({ tempoTrabalhadoMin = 0 }) => {
         </div>
       </div>
 
-      <div className="w-full bg-gray-200 rounded-full h-4">
+      <div className="w-45 bg-gray-200 rounded-full h-4">
         <div
           className="bg-blue-500 h-4 rounded-full transition-all duration-500"
           style={{ width: `${porcentagem}%` }}

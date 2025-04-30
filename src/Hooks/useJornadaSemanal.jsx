@@ -81,6 +81,7 @@ export function useJornadaSemanal(semanasAtras = 0) {
             faltou: false,
             atual: false,
             feriado: true,
+            
           });
           continue;
         }
