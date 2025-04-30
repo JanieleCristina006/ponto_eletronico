@@ -10,8 +10,6 @@ import { auth, db } from "../../FirebaseConection";
 import { useNavigate } from "react-router-dom";
 
 // Bibliotecas externas
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import {
   FiXCircle,
   FiTrendingUp,
@@ -30,10 +28,9 @@ import Logo from "../../assets/image.png";
 import { Clock } from "lucide-react";
 
 // Componentes
-import { AcoesRelatorio } from "../../components/AcoesRelatorio";
 import { CardProximaAcao } from "../../components/CardProximaAcao";
-import { CardRelatorioPonto } from "../../components/CardRelatorioPonto";
-import { CardResumo } from "../../components/CardResumo";
+import { CardPontualidade } from "../../components/CardPontualidade";
+import { CardProgressoJornada } from "../../components/CardProgressoJornada";
 import { CardResumoJornada } from "../../components/CardResumoJornada";
 import { GraficoJornada } from "../../components/GraficoJornada";
 import { Header } from "../../components/Header";
@@ -43,7 +40,7 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 export const Home = () => {
-  const [showModal, setShowModal] = useState(false);
+  
   const [isAdmin, setIsAdmin] = useState(false);
   const [nome, setNome] = useState("");
   const [pontos, setPontos] = useState({});
@@ -51,6 +48,13 @@ export const Home = () => {
   const [tempoCard, setTempoCard] = useState(null);
   const [tempoTrabalhadoAtual, setTempoTrabalhadoAtual] = useState(null);
   const [totalFaltas, setTotalFaltas] = useState(0);
+  const [tipoAcao, setTipoAcao] = useState("cafe");
+  const [horarioAcao, setHorarioAcao] = useState("15:30");
+  const [acaoConcluida, setAcaoConcluida] = useState(false);
+  const [diasPontuais, setDiasPontuais] = useState(0);
+  const [diasAtrasados, setDiasAtrasados] = useState(0);
+
+
 
   const navigate = useNavigate();
   const pdfRef = useRef();
@@ -60,120 +64,150 @@ export const Home = () => {
       if (usuario) {
         const docRef = doc(db, "users", usuario.uid);
         const docSnap = await getDoc(docRef);
-
+  
         if (docSnap.exists()) {
           const dados = docSnap.data();
           setNome(dados.nome || "Usuário");
-
+  
           if (dados.role === "admin") {
             setIsAdmin(true);
           }
+  
           await buscarPontos(usuario.uid);
+  
+          // Salva o uid para o outro useEffect
+         
+          setTimeout(() => {
+            verificarFaltas(usuario.uid);
+            verificarPontualidade(usuario.uid);
+          }, 500);
+          
         }
       }
     });
-
-    async function verificarFaltas() {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      const totalFaltas = await contarFaltas(user.uid);
-      setTotalFaltas(totalFaltas);
-    }
-
+  
     return () => unsubscribe();
-    verificarFaltas();
   }, []);
+  
+  async function verificarFaltas(uid) {
+    if (!uid) return;
+    const total = await contarFaltas(uid);
+    setTotalFaltas(total);
+  }
+  
 
   useEffect(() => {
     if (!pontos.entrada) return;
-
+  
     const intervalo = setInterval(() => {
       const agora = new Date();
-
+  
       function criarData(horaStr) {
         const [h, m] = horaStr.split(":").map(Number);
         const data = new Date();
         data.setHours(h, m, 0, 0);
         return data;
       }
-
+  
+      function formatarHora(date) {
+        return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+      }
+  
+      function segundosRestantes(futuro) {
+        return Math.max(0, Math.floor((futuro - new Date()) / 1000));
+      }
+  
       function minutosParaSegundos(min) {
         return min * 60;
       }
-
+  
       function calcularRestante(inicio, duracaoMinutos) {
-        const fim = new Date(
-          inicio.getTime() + minutosParaSegundos(duracaoMinutos) * 1000
-        );
+        const fim = new Date(inicio.getTime() + minutosParaSegundos(duracaoMinutos) * 1000);
         return Math.max(0, Math.floor((fim - agora) / 1000));
       }
-
-      // 🔄 Tempo trabalhado ao vivo
+  
+      // 🔄 Atualizar tempo trabalhado ao vivo
       if (pontos.entrada && !pontos.saida) {
         const entrada = criarData(pontos.entrada);
-
+  
         let pausas = 0;
         if (pontos.inicioAlmoco && pontos.voltaAlmoco) {
-          pausas +=
-            horaParaMinutos(pontos.voltaAlmoco) -
-            horaParaMinutos(pontos.inicioAlmoco);
+          pausas += horaParaMinutos(pontos.voltaAlmoco) - horaParaMinutos(pontos.inicioAlmoco);
         }
         if (pontos.inicioCafe && pontos.voltaCafe) {
-          pausas +=
-            horaParaMinutos(pontos.voltaCafe) -
-            horaParaMinutos(pontos.inicioCafe);
+          pausas += horaParaMinutos(pontos.voltaCafe) - horaParaMinutos(pontos.inicioCafe);
         }
+  
+        const diffMilissegundos = agora - entrada;
+if (diffMilissegundos > 0) {
+  const diffMinutos = Math.floor(diffMilissegundos / 60000);
+  const tempoReal = diffMinutos - pausas;
+  setTempoTrabalhadoAtual(tempoReal > 0 ? tempoReal : 0);
+} else {
+  setTempoTrabalhadoAtual(0); // Evita tempo negativo
+}
 
-        const diffMinutos = Math.floor((agora - entrada) / 60000);
-        const tempoReal = diffMinutos - pausas;
-        setTempoTrabalhadoAtual(tempoReal > 0 ? tempoReal : 0);
       }
-
-      // Mensagens de ações
+  
+      // 🔁 Atualizar mensagem do card e tempo
       if (pontos.entrada && !pontos.inicioAlmoco) {
         const entrada = criarData(pontos.entrada);
-        const horaAlmocoPrevista = new Date(
-          entrada.getTime() + 4 * 60 * 60 * 1000
-        );
-        const segundos = Math.floor((horaAlmocoPrevista - agora) / 1000);
-        const minutos = Math.floor(segundos / 60);
-        setMensagemCard(`Faltam ${minutos} minutos para o almoço`);
+        const horaAlmoco = new Date(entrada.getTime() + 4 * 60 * 60 * 1000);
+        const segundos = segundosRestantes(horaAlmoco);
+        setMensagemCard(`Faltam ${Math.floor(segundos / 60)} minutos para o almoço`);
         setTempoCard(segundos);
       } else if (pontos.inicioAlmoco && !pontos.voltaAlmoco) {
         const inicio = criarData(pontos.inicioAlmoco);
         const restante = calcularRestante(inicio, 60);
-        const minutos = Math.floor(restante / 60);
-        setMensagemCard(`Faltam ${minutos} minutos para voltar do almoço`);
+        setMensagemCard(`Faltam ${Math.floor(restante / 60)} minutos para voltar do almoço`);
         setTempoCard(restante);
       } else if (pontos.voltaAlmoco && !pontos.inicioCafe) {
         const volta = criarData(pontos.voltaAlmoco);
-        const horaCafePrevista = new Date(volta.getTime() + 2 * 60 * 60 * 1000);
-        const segundos = Math.floor((horaCafePrevista - agora) / 1000);
-        const minutos = Math.floor(segundos / 60);
-        setMensagemCard(`Faltam ${minutos} minutos para o café`);
+        const horaCafe = new Date(volta.getTime() + 2 * 60 * 60 * 1000);
+        const segundos = segundosRestantes(horaCafe);
+        setMensagemCard(`Faltam ${Math.floor(segundos / 60)} minutos para o café`);
         setTempoCard(segundos);
       } else if (pontos.inicioCafe && !pontos.voltaCafe) {
         const inicio = criarData(pontos.inicioCafe);
         const restante = calcularRestante(inicio, 15);
-        const minutos = Math.floor(restante / 60);
-        setMensagemCard(`Faltam ${minutos} minutos para voltar do café`);
+        setMensagemCard(`Faltam ${Math.floor(restante / 60)} minutos para voltar do café`);
         setTempoCard(restante);
       } else if (pontos.voltaCafe && !pontos.saida) {
         const entrada = criarData(pontos.entrada);
-        const fimPrevisto = new Date(entrada.getTime() + 8 * 60 * 60 * 1000);
-        const segundos = Math.floor((fimPrevisto - agora) / 1000);
-        const minutos = Math.floor(segundos / 60);
-        setMensagemCard(`Faltam ${minutos} minutos para finalizar sua jornada`);
+        const fimJornada = new Date(entrada.getTime() + 8 * 60 * 60 * 1000);
+        const segundos = segundosRestantes(fimJornada);
+        setMensagemCard(`Faltam ${Math.floor(segundos / 60)} minutos para finalizar sua jornada`);
         setTempoCard(segundos);
       } else if (pontos.saida) {
         setMensagemCard("Parabéns! Jornada concluída 🥳");
         setTempoCard(null);
       }
+  
+      // 🔁 Atualizar dados da Próxima Ação (para CardProximaAcao)
+      if (pontos.entrada && !pontos.inicioCafe) {
+        const entrada = criarData(pontos.entrada);
+        const cafePrevisto = new Date(entrada.getTime() + 6 * 60 * 60 * 1000);
+        setTipoAcao("cafe");
+        setHorarioAcao(formatarHora(cafePrevisto));
+        setAcaoConcluida(false);
+      } else if (pontos.inicioCafe && !pontos.voltaCafe) {
+        const inicioCafe = criarData(pontos.inicioCafe);
+        const fimPrevisto = new Date(inicioCafe.getTime() + 15 * 60 * 1000);
+        setTipoAcao("voltaCafe");
+        setHorarioAcao(formatarHora(fimPrevisto));
+        setAcaoConcluida(false);
+      } else if (pontos.voltaCafe) {
+        setTipoAcao("cafe");
+        setHorarioAcao("--:--");
+        setAcaoConcluida(true);
+      }
+  
     }, 1000);
-
+  
     return () => clearInterval(intervalo);
   }, [pontos]);
+  
+  
 
   function getDiasUteisDoMes() {
     const hoje = new Date();
@@ -334,19 +368,6 @@ export const Home = () => {
     return `${h}h ${String(m).padStart(2, "0")}min`;
   }
 
-  function formatarSegundos(segundos) {
-    if (segundos <= 0) return "00:00:00";
-
-    const h = Math.floor(segundos / 3600);
-    const m = Math.floor((segundos % 3600) / 60);
-    const s = segundos % 60;
-
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(
-      2,
-      "0"
-    )}:${String(s).padStart(2, "0")}`;
-  }
-
   function calcularHorasExtras(pontos) {
     const entrada = horaParaMinutos(pontos.entrada);
     const saida = horaParaMinutos(pontos.saida);
@@ -368,30 +389,40 @@ export const Home = () => {
     return excedente > 0 ? excedente : 0;
   }
 
-  function calcularTempoTrabalhadoAoVivo(pontos) {
-    const agora = new Date();
-    const [h, m] = pontos.entrada.split(":").map(Number);
-    const entrada = new Date();
-    entrada.setHours(h, m, 0, 0);
-
-    let pausas = 0;
-
-    if (pontos.inicioAlmoco && pontos.voltaAlmoco) {
-      pausas +=
-        horaParaMinutos(pontos.voltaAlmoco) -
-        horaParaMinutos(pontos.inicioAlmoco);
+  async function verificarPontualidade(uid) {
+    const diasUteis = getDiasUteisDoMes();
+    const hoje = new Date().toISOString().split("T")[0];
+    const diasDaSemana = diasUteis.filter((d) => d <= hoje).slice(-5); // últimos 5 dias úteis
+  
+    let pontuais = 0;
+    let atrasados = 0;
+  
+    for (const dia of diasDaSemana) {
+      const docRef = doc(db, "registros", uid, "dias", dia);
+      const docSnap = await getDoc(docRef);
+  
+      if (docSnap.exists()) {
+        const dados = docSnap.data();
+        const entrada = dados.entrada;
+        if (entrada) {
+          const minutos = horaParaMinutos(entrada);
+          const atraso = minutos - horaParaMinutos("08:00");
+  
+          if (atraso <= 5) {
+            pontuais++;
+          } else {
+            atrasados++;
+          }
+        }
+      }
     }
-
-    if (pontos.inicioCafe && pontos.voltaCafe) {
-      pausas +=
-        horaParaMinutos(pontos.voltaCafe) - horaParaMinutos(pontos.inicioCafe);
-    }
-
-    const diffMinutos = Math.floor((agora - entrada) / 60000);
-    const tempoReal = diffMinutos - pausas;
-
-    return tempoReal > 0 ? tempoReal : 0;
+  
+    setDiasPontuais(pontuais);
+    setDiasAtrasados(atrasados);
   }
+  
+
+
 
   const dadosGrafico = [
     { dia: "Seg", minutos: 480 },
@@ -406,153 +437,125 @@ export const Home = () => {
       
       <div className="flex-1 p-6 space-y-6 w-full bg-[#F8FAFC]">
       <ToastContainer />
-        {/* Header */}
-        <Header
-          nome={nome}
-          isAdmin={isAdmin}
-          onClickAdmin={() => navigate("/admin")}
+
+      {/* Header */}
+      <Header
+        nome={nome}
+        isAdmin={isAdmin}
+        onClickAdmin={() => navigate("/admin")}
+      />
+
+      {/* Grid principal responsiva */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+        {/* Card: Pontos do Dia */}
+        <div className="bg-white shadow-md rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 col-span-1 xl:col-span-2 h-full">
+          {/* Texto e pontos */}
+          <div className="flex-1">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">
+              Pontos do Dia {new Date().toLocaleDateString()}
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm text-gray-600">
+              <p className="flex items-center gap-2">
+                <FiLogIn className="text-[#4F46E5]" />
+                Entrada: <span className="font-medium text-gray-800">{pontos.entrada || "--"}</span>
+              </p>
+              <p className="flex items-center gap-2">
+                <FiSun className="text-yellow-500" />
+                Início Almoço: <span className="font-medium text-gray-800">{pontos.inicioAlmoco || "--"}</span>
+              </p>
+              <p className="flex items-center gap-2">
+                <FiSun className="text-yellow-500" />
+                Volta Almoço: <span className="font-medium text-gray-800">{pontos.voltaAlmoco || "--"}</span>
+              </p>
+              <p className="flex items-center gap-2">
+                <FiCoffee className="text-orange-500" />
+                Início Café: <span className="font-medium text-gray-800">{pontos.inicioCafe || "--"}</span>
+              </p>
+              <p className="flex items-center gap-2">
+                <FiCoffee className="text-orange-500" />
+                Fim Café: <span className="font-medium text-gray-800">{pontos.voltaCafe || "--"}</span>
+              </p>
+              <p className="flex items-center gap-2">
+                <FiLogOut className="text-red-500" />
+                Saída: <span className="font-medium text-gray-800">{pontos.saida || "--"}</span>
+              </p>
+            </div>
+
+            <button
+              onClick={baterPonto}
+              className="mt-6 inline-flex items-center gap-2 bg-[#4F46E5] hover:bg-indigo-700 transition-colors text-white font-medium py-2 px-4 rounded-lg shadow cursor-pointer"
+            >
+              <FiClock className="w-5 h-5" />
+              Registrar Ponto
+            </button>
+          </div>
+
+          {/* Ilustração */}
+          <div className="hidden md:block w-36 xl:w-52">
+            <img
+              src={Logo}
+              alt="Ilustração ponto eletrônico"
+              className="w-full h-auto rounded-xl"
+            />
+          </div>
+        </div>
+
+        {/* Card lateral de resumos */}
+        <div className="bg-white shadow-md rounded-2xl p-6 flex flex-col gap-3 h-full">
+          <CardPontualidade diasPontuais={diasPontuais} diasAtrasados={diasAtrasados} />
+
+          <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3 hover:shadow-sm transition">
+            <FiXCircle className="text-[#EF4444] text-2xl" />
+            <div>
+              <p className="text-sm text-gray-500">Faltas</p>
+              <p className="text-base font-bold text-gray-800">
+                {`${totalFaltas} ${totalFaltas === 1 ? "dia" : "dias"}`}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3 hover:shadow-sm transition">
+            <FiTrendingUp className="text-[#6366F1] text-2xl" />
+            <div>
+              <p className="text-sm text-gray-500">Horas Extras</p>
+              <p className="text-base font-bold text-gray-800">
+                {pontos.saida
+                  ? formatarMinutos(calcularHorasExtras(pontos))
+                  : "0h 00min"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Cards Detalhados */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <StatusEntradaSaida
+          pontos={pontos}
+          compararEntradaSaida={compararEntradaSaida}
+          formatarMinutosParaHoraEmin={formatarMinutosParaHoraEmin}
         />
 
-        {/* Grid principal com Pontos do Dia e Resumo Geral */}
-        <div className="grid xl:grid-cols-3 gap-4 items-start">
-          {/* Card: Pontos do Dia */}
-          <div className="bg-white shadow-md rounded-2xl p-6 flex flex-col lg:flex-row items-center justify-between gap-8 col-span-1 xl:col-span-2 h-full">
-            {/* Texto e pontos */}
-            <div className="flex-1">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">
-                Pontos do Dia {new Date().toLocaleDateString()}
-              </h2>
+        <CardProgressoJornada
+          tempoTrabalhadoMin={
+            pontos.saida
+              ? calcularTotalTrabalhado(pontos)
+              : tempoTrabalhadoAtual || 0
+          }
+        />
 
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm text-gray-600">
-                <p className="flex items-center gap-2">
-                  <FiLogIn className="text-[#4F46E5]" />
-                  Entrada:{" "}
-                  <span className="font-medium text-gray-800">
-                    {pontos.entrada || "--"}
-                  </span>
-                </p>
-                <p className="flex items-center gap-2">
-                  <FiSun className="text-yellow-500" />
-                  Início Almoço:{" "}
-                  <span className="font-medium text-gray-800">
-                    {pontos.inicioAlmoco || "--"}
-                  </span>
-                </p>
-                <p className="flex items-center gap-2">
-                  <FiSun className="text-yellow-500" />
-                  Volta Almoço:{" "}
-                  <span className="font-medium text-gray-800">
-                    {pontos.voltaAlmoco || "--"}
-                  </span>
-                </p>
-                <p className="flex items-center gap-2">
-                  <FiCoffee className="text-orange-500" />
-                  Início Café:{" "}
-                  <span className="font-medium text-gray-800">
-                    {pontos.inicioCafe || "--"}
-                  </span>
-                </p>
-                <p className="flex items-center gap-2">
-                  <FiCoffee className="text-orange-500" />
-                  Fim Café:{" "}
-                  <span className="font-medium text-gray-800">
-                     {pontos.voltaCafe || "--"}
-                  </span>
-                </p>
-                <p className="flex items-center gap-2">
-                  <FiLogOut className="text-red-500" />
-                  Saída:{" "}
-                  <span className="font-medium text-gray-800">
-                    {pontos.saida || "--"}
-                  </span>
-                </p>
-              </div>
-
-              <button
-                onClick={baterPonto}
-                className="mt-6 inline-flex items-center gap-2 bg-[#4F46E5] hover:bg-indigo-700 transition-colors text-white font-medium py-2 px-4 rounded-lg shadow cursor-pointer"
-              >
-                <FiClock className="w-5 h-5" />
-                Registrar Ponto
-              </button>
-            </div>
-
-            {/* Ilustração */}
-            <div className="hidden lg:block w-44 xl:w-52">
-              <img
-                src={Logo}
-                alt="Ilustração ponto eletrônico"
-                className="w-full h-auto rounded-xl"
-              />
-            </div>
-          </div>
-
-          {/* Card agrupado com os resumos */}
-          <div className="bg-white shadow-md rounded-2xl p-6 flex flex-col gap-3 h-full">
-            {/* Bloco: Tempo Trabalhado */}
-            <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3 hover:shadow-sm transition">
-              <BiTimeFive className="text-[#10B981] text-2xl" />
-              <div>
-                <p className="text-sm text-gray-500">Tempo Trabalhado</p>
-                <p className="text-base font-bold text-gray-800">
-                  {pontos.saida
-                    ? formatarMinutos(calcularTotalTrabalhado(pontos))
-                    : tempoTrabalhadoAtual !== null
-                    ? formatarMinutos(tempoTrabalhadoAtual)
-                    : "--:--"}
-                </p>
-              </div>
-            </div>
-
-            {/* Bloco: Faltas */}
-            <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3 hover:shadow-sm transition">
-              <FiXCircle className="text-[#EF4444] text-2xl" />
-              <div>
-                <p className="text-sm text-gray-500">Faltas</p>
-                <p className="text-base font-bold text-gray-800">
-                  {`${totalFaltas} ${totalFaltas === 1 ? "dia" : "dias"}`}
-                </p>
-              </div>
-            </div>
-
-            {/* Bloco: Horas Extras */}
-            <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3 hover:shadow-sm transition">
-              <FiTrendingUp className="text-[#6366F1] text-2xl" />
-              <div>
-                <p className="text-sm text-gray-500">Horas Extras</p>
-                <p className="text-base font-bold text-gray-800">
-                  {pontos.saida
-                    ? formatarMinutos(calcularHorasExtras(pontos))
-                    : "0h 00min"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Cards Detalhados */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <StatusEntradaSaida
-            pontos={pontos}
-            compararEntradaSaida={compararEntradaSaida}
-            formatarMinutosParaHoraEmin={formatarMinutosParaHoraEmin}
-          />
-          <CardProximaAcao
-            tempoCard={tempoCard}
-            mensagemCard={mensagemCard}
-            onNotificar={() => setShowModal(true)}
-          />
-          <CardResumoJornada
-            pontos={pontos}
-            calcularTotalTrabalhado={calcularTotalTrabalhado}
-            calcularHorasExtras={calcularHorasExtras}
-            formatarMinutos={formatarMinutos}
-          />
-        </div>
-
-        {/* Gráfico Jornada Semanal */}
-        <GraficoJornada dados={dadosGrafico} />
+        <CardResumoJornada
+          pontos={pontos}
+          calcularTotalTrabalhado={calcularTotalTrabalhado}
+          calcularHorasExtras={calcularHorasExtras}
+          formatarMinutos={formatarMinutos}
+        />
       </div>
+
+      {/* Gráfico Jornada Semanal */}
+      <GraficoJornada dados={dadosGrafico} />
+    </div>
     </>
   );
 };
