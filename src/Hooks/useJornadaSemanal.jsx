@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { auth, db } from "../FirebaseConection";
 import { doc, getDoc } from "firebase/firestore";
+import { buscarFeriadosNacionais } from '../utils/buscarFeriadosNacionais'
 
 const diasDaSemana = ["Seg", "Ter", "Qua", "Qui", "Sex"];
 
@@ -52,7 +53,12 @@ export function useJornadaSemanal(semanasAtras = 0) {
       const fimSemana = new Date(inicioSemana);
       fimSemana.setDate(fimSemana.getDate() + 4);
 
-      setIntervaloSemana(`${formatarData(inicioSemana)} - ${formatarData(fimSemana)}${semanasAtras === 0 ? " (Atual)" : ""}`);
+      setIntervaloSemana(
+        `${formatarData(inicioSemana)} - ${formatarData(fimSemana)}${semanasAtras === 0 ? " (Atual)" : ""}`
+      );
+
+      const anoAtual = inicioSemana.getFullYear();
+      const feriados = await buscarFeriadosNacionais(anoAtual);
 
       const registros = [];
 
@@ -63,9 +69,21 @@ export function useJornadaSemanal(semanasAtras = 0) {
 
         const label = diasDaSemana[i];
         const dataId = dia.toISOString().split("T")[0];
-
         const atual = dataId === hojeFormatado && semanasAtras === 0;
         const isFuturo = dia > hoje && semanasAtras === 0;
+        const isFeriado = feriados.includes(dataId);
+
+        // 👉 Registro de feriado
+        if (isFeriado) {
+          registros.push({
+            dia: label,
+            minutos: null,
+            faltou: false,
+            atual: false,
+            feriado: true,
+          });
+          continue;
+        }
 
         const docRef = doc(db, "registros", user.uid, "dias", dataId);
         const docSnap = await getDoc(docRef);
@@ -78,6 +96,7 @@ export function useJornadaSemanal(semanasAtras = 0) {
               minutos: calcularMinutosTrabalhados(pontos),
               faltou: false,
               atual,
+              feriado: false,
             });
             continue;
           }
@@ -88,6 +107,7 @@ export function useJornadaSemanal(semanasAtras = 0) {
           minutos: isFuturo ? null : 0,
           faltou: !isFuturo && !atual,
           atual,
+          feriado: false,
         });
       }
 
@@ -99,3 +119,4 @@ export function useJornadaSemanal(semanasAtras = 0) {
 
   return { dados, intervaloSemana };
 }
+

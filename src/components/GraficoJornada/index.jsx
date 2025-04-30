@@ -18,16 +18,40 @@ export const GraficoJornada = () => {
   const horasExtras = Math.floor(totalExtras / 60);
   const minutosExtras = totalExtras % 60;
 
+  const gerarSemanas = () => {
+    const semanas = [];
+
+    for (let i = 0; i < 3; i++) {
+      const hoje = new Date();
+      const inicioSemana = new Date();
+      inicioSemana.setDate(inicioSemana.getDate() - inicioSemana.getDay() + 1 - i * 7);
+      const fimSemana = new Date(inicioSemana);
+      fimSemana.setDate(fimSemana.getDate() + 4);
+
+      const formato = (data) =>
+        data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+
+      const label = `${formato(inicioSemana)} - ${formato(fimSemana)}${i === 0 ? " (Atual)" : ""}`;
+
+      semanas.push({ label, value: i });
+    }
+
+    return semanas;
+  };
+
+  const semanasDisponiveis = gerarSemanas();
+
   return (
     <div className="bg-white p-6 rounded-2xl shadow-md">
       {/* Cabeçalho */}
       <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
         <div className="flex flex-col gap-1">
           <h3 className="text-lg font-semibold text-[#35122E]">Jornada Semanal</h3>
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-4 text-sm flex-wrap">
             <Legenda cor="#6B256F" texto="Presença" />
             <Legenda cor="#000000" texto="Falta" />
             <Legenda cor="#22C55E" texto="Dia Atual" />
+            <Legenda cor="#EAB308" texto="Feriado" />
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -39,9 +63,11 @@ export const GraficoJornada = () => {
             value={semanaSelecionada}
             onChange={(e) => setSemanaSelecionada(Number(e.target.value))}
           >
-            <option value={0}>14/04 - 18/04 (Atual)</option>
-            <option value={1}>07/04 - 11/04</option>
-            <option value={2}>31/03 - 04/04</option>
+            {semanasDisponiveis.map((semana) => (
+              <option key={semana.value} value={semana.value}>
+                {semana.label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -71,7 +97,6 @@ export const GraficoJornada = () => {
               fontSize: 12,
             }}
           />
-
           <Bar
             dataKey="minutos"
             shape={({ x, y, width, height, payload }) => {
@@ -80,8 +105,9 @@ export const GraficoJornada = () => {
               const finalY = height < minHeight ? y + (height - minHeight) : y;
 
               let cor = "#6B256F"; // Presença
-              if (payload.faltou && !payload.atual) cor = "#000";
-              if (payload.atual) cor = "#22C55E";
+              if (payload.feriado) cor = "#EAB308"; // 🌟 Feriado
+              else if (payload.faltou && !payload.atual) cor = "#000";
+              else if (payload.atual) cor = "#22C55E";
 
               return (
                 <rect
@@ -112,7 +138,17 @@ export const GraficoJornada = () => {
 // Tooltip personalizado
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
-    const { minutos, faltou, atual } = payload[0].payload;
+    const { minutos, faltou, atual, feriado } = payload[0].payload;
+
+    if (feriado) {
+      return (
+        <div className="bg-white border border-yellow-400 rounded-xl shadow-md p-3 text-sm">
+          <p className="text-[#35122E] font-semibold">{label}</p>
+          <p className="text-yellow-600 font-medium">Feriado Nacional 🎉</p>
+          <p className="text-gray-600">Dia não trabalhado</p>
+        </div>
+      );
+    }
 
     const horas = Math.floor(minutos / 60);
     const min = minutos % 60;
