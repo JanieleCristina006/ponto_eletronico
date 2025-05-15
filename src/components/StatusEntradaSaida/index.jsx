@@ -13,9 +13,10 @@ export const StatusEntradaSaida = ({
     );
   }
 
+  // Agora é seguro chamar
+  const diferenca = compararEntradaSaida(pontos) || {};
   const temEntrada = Boolean(pontos.entrada && pontos.entrada.trim() !== "");
   const temSaida = Boolean(pontos.saida && pontos.saida.trim() !== "");
-  const diferenca = compararEntradaSaida(pontos) || {};
 
   return (
     <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm">

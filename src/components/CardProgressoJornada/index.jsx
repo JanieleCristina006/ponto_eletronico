@@ -1,12 +1,15 @@
 import { FiClock } from "react-icons/fi";
 
 export const CardProgressoJornada = ({ tempoTrabalhadoMin = 0 }) => {
-  const jornadaTotalMin = 480; // 8 horas * 60 minutos
-  const porcentagem = Math.min((tempoTrabalhadoMin / jornadaTotalMin) * 100, 100);
+  const tempo = Number(tempoTrabalhadoMin) || 0;
+  const jornadaTotalMin = 480;
 
-  const horas = Math.floor(tempoTrabalhadoMin / 60);
-  const minutos = tempoTrabalhadoMin % 60;
-  const faltamMin = Math.max(0, jornadaTotalMin - tempoTrabalhadoMin);
+  const porcentagem = Math.min((tempo / jornadaTotalMin) * 100, 100);
+
+  const horas = Math.floor(tempo / 60);
+  const minutos = tempo % 60;
+
+  const faltamMin = Math.max(0, jornadaTotalMin - tempo);
   const faltamHoras = Math.floor(faltamMin / 60);
   const faltamMinutos = faltamMin % 60;
 

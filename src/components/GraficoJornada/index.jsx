@@ -5,9 +5,17 @@ import {
 } from "recharts";
 import { useJornadaSemanal } from "../../Hooks/useJornadaSemanal";
 
-export const GraficoJornada = () => {
+export const GraficoJornada = ({ nome }) => {
   const [semanaSelecionada, setSemanaSelecionada] = useState(0);
-  const { dados, intervaloSemana } = useJornadaSemanal(semanaSelecionada);
+  const { dados } = useJornadaSemanal(semanaSelecionada);
+
+  if (nome === "Visitante") {
+    return (
+      <div className="bg-white p-6 rounded-2xl shadow-md text-center text-gray-500">
+        O gráfico não está disponível no modo visitante.
+      </div>
+    );
+  }
 
   if (!dados.length) return <p className="text-sm text-gray-500">Carregando gráfico...</p>;
 
@@ -43,7 +51,6 @@ export const GraficoJornada = () => {
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-md">
-      {/* Cabeçalho */}
       <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
         <div className="flex flex-col gap-1">
           <h3 className="text-lg font-semibold text-[#35122E]">Jornada Semanal</h3>
@@ -72,7 +79,6 @@ export const GraficoJornada = () => {
         </div>
       </div>
 
-      {/* Gráfico */}
       <ResponsiveContainer width="100%" height={250}>
         <BarChart
           data={dados}
@@ -104,8 +110,8 @@ export const GraficoJornada = () => {
               const finalHeight = height < minHeight ? minHeight : height;
               const finalY = height < minHeight ? y + (height - minHeight) : y;
 
-              let cor = "#6B256F"; // Presença
-              if (payload.feriado) cor = "#EAB308"; // 🌟 Feriado
+              let cor = "#6B256F";
+              if (payload.feriado) cor = "#EAB308";
               else if (payload.faltou && !payload.atual) cor = "#000";
               else if (payload.atual) cor = "#22C55E";
 
@@ -135,7 +141,6 @@ export const GraficoJornada = () => {
   );
 };
 
-// Tooltip personalizado
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     const { minutos, faltou, atual, feriado } = payload[0].payload;
@@ -188,7 +193,6 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-// Componente reutilizável da legenda
 const Legenda = ({ cor, texto }) => (
   <div className="flex items-center gap-1">
     <span className="w-3 h-3 rounded-full" style={{ backgroundColor: cor }} />

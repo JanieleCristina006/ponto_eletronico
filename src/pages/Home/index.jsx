@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../FirebaseConection";
+import { GraficoResumo } from "../../components/GraficoPizza";
 
 // Navegação
 import { useNavigate } from "react-router-dom";
@@ -17,21 +18,16 @@ import {
   FiLogOut,
   FiCoffee,
   FiSun,
-  FiMoon,
   FiClock,
 } from "react-icons/fi";
-import { BiTimeFive } from "react-icons/bi";
+
 
 import Logo from "../../assets/image.png";
 
-// Ícones
-import { Clock } from "lucide-react";
-
-// Componentes
-import { CardProximaAcao } from "../../components/CardProximaAcao";
 import { CardPontualidade } from "../../components/CardPontualidade";
+import { CardAtrasos } from "../../components/CardAtrasos";
 import { CardProgressoJornada } from "../../components/CardProgressoJornada";
-import { CardResumoJornada } from "../../components/CardResumoJornada";
+import { CardHorasExtras } from "../../components/CardResumoJornada";
 import { GraficoJornada } from "../../components/GraficoJornada";
 import { Header } from "../../components/Header";
 import { StatusEntradaSaida } from "../../components/StatusEntradaSaida";
@@ -43,7 +39,8 @@ export const Home = () => {
   
   const [isAdmin, setIsAdmin] = useState(false);
   const [nome, setNome] = useState("");
-  const [pontos, setPontos] = useState({});
+  const [pontos, setPontos] = useState(null);
+
   const [mensagemCard, setMensagemCard] = useState("");
   const [tempoCard, setTempoCard] = useState(null);
   const [tempoTrabalhadoAtual, setTempoTrabalhadoAtual] = useState(null);
@@ -53,42 +50,47 @@ export const Home = () => {
   const [acaoConcluida, setAcaoConcluida] = useState(false);
   const [diasPontuais, setDiasPontuais] = useState(0);
   const [diasAtrasados, setDiasAtrasados] = useState(0);
+  const [horasExtrasDoMes, setHorasExtrasDoMes] = useState(0);
+
 
 
 
   const navigate = useNavigate();
   const pdfRef = useRef();
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (usuario) => {
-      if (usuario) {
-        const docRef = doc(db, "users", usuario.uid);
-        const docSnap = await getDoc(docRef);
-  
-        if (docSnap.exists()) {
-          const dados = docSnap.data();
-          setNome(dados.nome || "Usuário");
-  
-          if (dados.role === "admin") {
-            setIsAdmin(true);
+ 
+    useEffect(() => {
+      const unsubscribe = onAuthStateChanged(auth, async (usuario) => {
+        if (usuario) {
+          const docRef = doc(db, "users", usuario.uid);
+          const docSnap = await getDoc(docRef);
+
+          if (docSnap.exists()) {
+            const dados = docSnap.data();
+            setNome(dados.nome || "Usuário");
+
+            if (dados.role === "admin") {
+              setIsAdmin(true);
+            }
+          } else {
+          
+            setNome("Visitante");
           }
-  
+
+          
           await buscarPontos(usuario.uid);
-  
-          // Salva o uid para o outro useEffect
-         
+
           setTimeout(() => {
             verificarFaltas(usuario.uid);
             verificarPontualidade(usuario.uid);
+            calcularHorasExtrasDoMes(usuario.uid);
           }, 500);
-          
         }
-      }
-    });
-  
-    return () => unsubscribe();
-  }, []);
-  
+      });
+
+      return () => unsubscribe();
+    }, []);
+
   async function verificarFaltas(uid) {
     if (!uid) return;
     const total = await contarFaltas(uid);
@@ -97,7 +99,7 @@ export const Home = () => {
   
 
   useEffect(() => {
-    if (!pontos.entrada) return;
+     if (!pontos || !pontos.entrada) return; 
   
     const intervalo = setInterval(() => {
       const agora = new Date();
@@ -131,21 +133,34 @@ export const Home = () => {
         const entrada = criarData(pontos.entrada);
   
         let pausas = 0;
-        if (pontos.inicioAlmoco && pontos.voltaAlmoco) {
-          pausas += horaParaMinutos(pontos.voltaAlmoco) - horaParaMinutos(pontos.inicioAlmoco);
+
+        // Pausa almoço
+        if (pontos.inicioAlmoco) {
+          if (pontos.voltaAlmoco) {
+            pausas += horaParaMinutos(pontos.voltaAlmoco) - horaParaMinutos(pontos.inicioAlmoco);
+          } else {
+            pausas += Math.floor((agora - criarData(pontos.inicioAlmoco)) / 60000);
+          }
         }
-        if (pontos.inicioCafe && pontos.voltaCafe) {
-          pausas += horaParaMinutos(pontos.voltaCafe) - horaParaMinutos(pontos.inicioCafe);
+        
+        // Pausa café
+        if (pontos.inicioCafe) {
+          if (pontos.voltaCafe) {
+            pausas += horaParaMinutos(pontos.voltaCafe) - horaParaMinutos(pontos.inicioCafe);
+          } else {
+            pausas += Math.floor((agora - criarData(pontos.inicioCafe)) / 60000);
+          }
         }
+        
   
-        const diffMilissegundos = agora - entrada;
-if (diffMilissegundos > 0) {
-  const diffMinutos = Math.floor(diffMilissegundos / 60000);
-  const tempoReal = diffMinutos - pausas;
-  setTempoTrabalhadoAtual(tempoReal > 0 ? tempoReal : 0);
-} else {
-  setTempoTrabalhadoAtual(0); // Evita tempo negativo
-}
+                const diffMilissegundos = agora - entrada;
+        if (diffMilissegundos > 0) {
+          const diffMinutos = Math.floor(diffMilissegundos / 60000);
+          const tempoReal = diffMinutos - pausas;
+          setTempoTrabalhadoAtual(tempoReal > 0 ? tempoReal : 0);
+        } else {
+          setTempoTrabalhadoAtual(0); // Evita tempo negativo
+        }
 
       }
   
@@ -182,8 +197,7 @@ if (diffMilissegundos > 0) {
         setMensagemCard("Parabéns! Jornada concluída 🥳");
         setTempoCard(null);
       }
-  
-      // 🔁 Atualizar dados da Próxima Ação (para CardProximaAcao)
+
       if (pontos.entrada && !pontos.inicioCafe) {
         const entrada = criarData(pontos.entrada);
         const cafePrevisto = new Date(entrada.getTime() + 6 * 60 * 60 * 1000);
@@ -420,8 +434,27 @@ if (diffMilissegundos > 0) {
     setDiasPontuais(pontuais);
     setDiasAtrasados(atrasados);
   }
-  
 
+  async function calcularHorasExtrasDoMes(uid) {
+    const diasUteis = getDiasUteisDoMes();
+    let totalExtras = 0;
+  
+    for (const dia of diasUteis) {
+      const docRef = doc(db, "registros", uid, "dias", dia);
+      const docSnap = await getDoc(docRef);
+  
+      if (docSnap.exists()) {
+        const dados = docSnap.data();
+  
+        if (dados.entrada && dados.saida) {
+          const extras = calcularHorasExtras(dados);
+          totalExtras += extras;
+        }
+      }
+    }
+  
+    setHorasExtrasDoMes(totalExtras);
+  }
 
 
   const dadosGrafico = [
@@ -432,18 +465,30 @@ if (diffMilissegundos > 0) {
     { dia: "Sex", minutos: 495 },
   ];
 
+  if (pontos === null) {
+  return (
+    <div className="flex justify-center items-center h-screen text-gray-500">
+      Carregando dados do ponto...
+    </div>
+  );
+}
+
+
   return (
     <>
       
-      <div className="flex-1 p-6 space-y-6 w-full bg-[#F8FAFC]">
+      <div
+       className="flex-1 p-6 pl-8 space-y-6 w-full bg-[#F8FAFC]"
+      >
       <ToastContainer />
 
       {/* Header */}
       <Header
-        nome={nome}
+        nome={nome === "Visitante" ? "Bem-vindo, visitante!" : nome}
         isAdmin={isAdmin}
         onClickAdmin={() => navigate("/admin")}
       />
+
 
       {/* Grid principal responsiva */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
@@ -458,7 +503,7 @@ if (diffMilissegundos > 0) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm text-gray-600">
               <p className="flex items-center gap-2">
                 <FiLogIn className="text-[#4F46E5]" />
-                Entrada: <span className="font-medium text-gray-800">{pontos.entrada || "--"}</span>
+                Entrada: <span className="font-medium text-gray-800">{pontos?.entrada || "--"}</span>
               </p>
               <p className="flex items-center gap-2">
                 <FiSun className="text-yellow-500" />
@@ -501,57 +546,49 @@ if (diffMilissegundos > 0) {
           </div>
         </div>
 
-        {/* Card lateral de resumos */}
-        <div className="bg-white shadow-md rounded-2xl p-6 flex flex-col gap-3 h-full">
-          <CardPontualidade diasPontuais={diasPontuais} diasAtrasados={diasAtrasados} />
+        
+          {/* Card lateral de resumos */}
 
-          <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3 hover:shadow-sm transition">
-            <FiXCircle className="text-[#EF4444] text-2xl" />
-            <div>
-              <p className="text-sm text-gray-500">Faltas</p>
-              <p className="text-base font-bold text-gray-800">
-                {`${totalFaltas} ${totalFaltas === 1 ? "dia" : "dias"}`}
-              </p>
-            </div>
-          </div>
+                  {/* Card lateral de resumos com grid interno para melhor organização */}
+          <GraficoResumo
+              nome={nome}
+              diasPontuais={nome === "Visitante" ? 0 : diasPontuais}
+              diasAtrasados={nome === "Visitante" ? 0 : diasAtrasados}
+              totalFaltas={nome === "Visitante" ? 0 : totalFaltas}
+          />
 
-          <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3 hover:shadow-sm transition">
-            <FiTrendingUp className="text-[#6366F1] text-2xl" />
-            <div>
-              <p className="text-sm text-gray-500">Horas Extras</p>
-              <p className="text-base font-bold text-gray-800">
-                {pontos.saida
-                  ? formatarMinutos(calcularHorasExtras(pontos))
-                  : "0h 00min"}
-              </p>
-            </div>
-          </div>
-        </div>
+
       </div>
 
       {/* Cards Detalhados */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <StatusEntradaSaida
-          pontos={pontos}
-          compararEntradaSaida={compararEntradaSaida}
-          formatarMinutosParaHoraEmin={formatarMinutosParaHoraEmin}
-        />
+    {/* Cards Detalhados */}
+{pontos ? (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <StatusEntradaSaida
+      pontos={pontos}
+      compararEntradaSaida={compararEntradaSaida}
+      formatarMinutosParaHoraEmin={formatarMinutosParaHoraEmin}
+    />
 
-        <CardProgressoJornada
-          tempoTrabalhadoMin={
-            pontos.saida
-              ? calcularTotalTrabalhado(pontos)
-              : tempoTrabalhadoAtual || 0
-          }
-        />
+    <CardProgressoJornada
+      tempoTrabalhadoMin={
+        pontos.saida
+          ? calcularTotalTrabalhado(pontos)
+          : tempoTrabalhadoAtual || 0
+      }
+    />
 
-        <CardResumoJornada
-          pontos={pontos}
-          calcularTotalTrabalhado={calcularTotalTrabalhado}
-          calcularHorasExtras={calcularHorasExtras}
-          formatarMinutos={formatarMinutos}
-        />
-      </div>
+    <CardHorasExtras
+      totalMinutos={horasExtrasDoMes}
+      formatarMinutos={formatarMinutos}
+    />
+  </div>
+) : (
+  <div className="text-center text-gray-500 col-span-full">
+    Carregando dados do ponto...
+  </div>
+)}
+
 
       {/* Gráfico Jornada Semanal */}
       <GraficoJornada dados={dadosGrafico} />
