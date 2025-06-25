@@ -8,7 +8,7 @@ import {
   Cell,
 } from "recharts";
 
-const COLORS = ["#22C55E", "#FACC15", "#EF4444"];
+const COLORS = ["#22C55E", "#FACC15", "#EF4444"]; // Pontual, Atraso, Falta
 
 export const GraficoResumo = ({ diasPontuais, diasAtrasados, totalFaltas }) => {
   const data = [
@@ -18,8 +18,10 @@ export const GraficoResumo = ({ diasPontuais, diasAtrasados, totalFaltas }) => {
   ];
 
   return (
-    <div className="bg-white shadow-md rounded-2xl p-6 h-full">
-      <h3 className="text-lg font-semibold text-gray-800 mb-4">Resumo de Frequência Mensal</h3>
+    <div className="bg-white dark:bg-gray-900 shadow-md rounded-2xl p-6 h-full border border-gray-200 dark:border-gray-700 transition-colors">
+      <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+        Resumo de Frequência Mensal
+      </h3>
 
       <ResponsiveContainer width="100%" height={250}>
         <BarChart
@@ -27,9 +29,38 @@ export const GraficoResumo = ({ diasPontuais, diasAtrasados, totalFaltas }) => {
           data={data}
           margin={{ top: 5, right: 20, left: 20, bottom: 5 }}
         >
-          <XAxis type="number" />
-          <YAxis dataKey="name" type="category" />
-          <Tooltip formatter={(value) => [`${value} dia${value !== 1 ? "s" : ""}`]} />
+          <XAxis
+            type="number"
+            tick={{ fill: '#4B5563' }}
+            axisLine={{ stroke: '#E2E8F0' }}
+          />
+          <YAxis
+            dataKey="name"
+            type="category"
+            tick={{ fill: '#4B5563' }} 
+            axisLine={{ stroke: '#E2E8F0' }}
+          />
+
+         <Tooltip
+  content={({ payload }) => {
+    if (!payload || !payload.length) return null;
+
+    return (
+      <div className="bg-white rounded-lg shadow-md p-3 border border-gray-300 text-sm text-gray-800 space-y-1">
+        {payload.map((item, index) => (
+          <div key={index} className="flex justify-between gap-2">
+            <span>{item.name}:</span>
+            <span>{item.value} dia{item.value !== 1 ? 's' : ''}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }}
+  cursor={{ fill: 'rgba(100,116,139,0.05)' }}
+/>
+
+
+
           <Bar dataKey="value" barSize={30}>
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -38,8 +69,7 @@ export const GraficoResumo = ({ diasPontuais, diasAtrasados, totalFaltas }) => {
         </BarChart>
       </ResponsiveContainer>
 
-      {/* Legenda personalizada */}
-      <div className="flex justify-center gap-4 mt-4 text-sm">
+      <div className="flex justify-center gap-4 mt-4 text-sm text-gray-700 dark:text-gray-200">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-sm bg-[#22C55E]" />
           <span>Pontual</span>

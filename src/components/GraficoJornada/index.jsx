@@ -11,13 +11,16 @@ export const GraficoJornada = ({ nome }) => {
 
   if (nome === "Visitante") {
     return (
-      <div className="bg-white p-6 rounded-2xl shadow-md text-center text-gray-500">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-2xl shadow-md text-center text-gray-500 dark:text-gray-300">
         O gráfico não está disponível no modo visitante.
       </div>
     );
   }
 
-  if (!dados.length) return <p className="text-sm text-gray-500">Carregando gráfico...</p>;
+  if (!dados.length)
+    return (
+      <p className="text-sm text-gray-500 dark:text-gray-300">Carregando gráfico...</p>
+    );
 
   const totalExtras = dados.reduce((acc, item) => {
     const extra = item.minutos - 480;
@@ -28,7 +31,6 @@ export const GraficoJornada = ({ nome }) => {
 
   const gerarSemanas = () => {
     const semanas = [];
-
     for (let i = 0; i < 3; i++) {
       const hoje = new Date();
       const inicioSemana = new Date();
@@ -40,20 +42,18 @@ export const GraficoJornada = ({ nome }) => {
         data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 
       const label = `${formato(inicioSemana)} - ${formato(fimSemana)}${i === 0 ? " (Atual)" : ""}`;
-
       semanas.push({ label, value: i });
     }
-
     return semanas;
   };
 
   const semanasDisponiveis = gerarSemanas();
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-md">
+    <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-md border border-gray-200 dark:border-gray-700 transition-colors">
       <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
         <div className="flex flex-col gap-1">
-          <h3 className="text-lg font-semibold text-[#35122E]">Jornada Semanal</h3>
+          <h3 className="text-lg font-semibold text-[#35122E] dark:text-white">Jornada Semanal</h3>
           <div className="flex items-center gap-4 text-sm flex-wrap">
             <Legenda cor="#6B256F" texto="Presença" />
             <Legenda cor="#000000" texto="Falta" />
@@ -62,11 +62,11 @@ export const GraficoJornada = ({ nome }) => {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <p className="text-sm text-[#6B256F] font-medium">
+          <p className="text-sm text-[#6B256F] dark:text-purple-300 font-medium">
             Horas Extras: {horasExtras}h {minutosExtras}min
           </p>
           <select
-            className="border border-gray-300 text-sm rounded-md px-2 py-1"
+            className="border border-gray-300 dark:border-gray-600 dark:bg-gray-800 text-sm rounded-md px-2 py-1 text-gray-800 dark:text-gray-100 transition-colors"
             value={semanaSelecionada}
             onChange={(e) => setSemanaSelecionada(Number(e.target.value))}
           >
@@ -86,10 +86,11 @@ export const GraficoJornada = ({ nome }) => {
           barCategoryGap={25}
         >
           <CartesianGrid strokeDasharray="2 4" vertical={false} />
-          <XAxis dataKey="dia" />
+          <XAxis dataKey="dia" tick={{ fill: '#6B7280' }} />
           <YAxis
             tickFormatter={(min) => `${Math.floor(min / 60)}h`}
             domain={[0, 600]}
+            tick={{ fill: '#6B7280' }}
           />
           <Tooltip content={<CustomTooltip />} />
           <ReferenceLine
@@ -145,46 +146,51 @@ const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     const { minutos, faltou, atual, feriado } = payload[0].payload;
 
-    if (feriado) {
-      return (
-        <div className="bg-white border border-yellow-400 rounded-xl shadow-md p-3 text-sm">
-          <p className="text-[#35122E] font-semibold">{label}</p>
-          <p className="text-yellow-600 font-medium">Feriado Nacional 🎉</p>
-          <p className="text-gray-600">Dia não trabalhado</p>
-        </div>
-      );
-    }
+    const baseClass =
+      "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-md p-3 text-sm text-gray-800 dark:text-gray-100";
 
     const horas = Math.floor(minutos / 60);
     const min = minutos % 60;
     const extras = minutos - 480;
 
+    if (feriado) {
+      return (
+        <div className={baseClass}>
+          <p className="text-[#35122E] dark:text-purple-300 font-semibold">{label}</p>
+          <p className="text-yellow-600 dark:text-yellow-400 font-medium">Feriado Nacional 🎉</p>
+          <p className="text-gray-600 dark:text-gray-300">Dia não trabalhado</p>
+        </div>
+      );
+    }
+
     if (faltou && !atual) {
       return (
-        <div className="bg-white border border-gray-300 rounded-xl shadow-md p-3 text-sm">
-          <p className="text-[#35122E] font-semibold">{label}</p>
+        <div className={baseClass}>
+          <p className="text-[#35122E] dark:text-purple-300 font-semibold">{label}</p>
           <p className="text-red-600 font-medium">Faltou</p>
-          <p className="text-gray-600">Deveria cumprir: 8h 0min</p>
+          <p className="text-gray-600 dark:text-gray-300">Deveria cumprir: 8h 0min</p>
         </div>
       );
     }
 
     if (faltou && atual) {
       return (
-        <div className="bg-white border border-gray-300 rounded-xl shadow-md p-3 text-sm">
-          <p className="text-[#35122E] font-semibold">{label}</p>
-          <p className="text-yellow-600 font-medium">Jornada em andamento</p>
-          <p className="text-gray-600">Deveria cumprir: 8h 0min</p>
+        <div className={baseClass}>
+          <p className="text-[#35122E] dark:text-purple-300 font-semibold">{label}</p>
+          <p className="text-yellow-600 dark:text-yellow-400 font-medium">Jornada em andamento</p>
+          <p className="text-gray-600 dark:text-gray-300">Deveria cumprir: 8h 0min</p>
         </div>
       );
     }
 
     return (
-      <div className="bg-white border border-gray-300 rounded-xl shadow-md p-3 text-sm">
-        <p className="text-[#35122E] font-semibold">{label}</p>
+      <div className={baseClass}>
+        <p className="text-[#35122E] dark:text-purple-300 font-semibold">{label}</p>
         <p>Jornada: {horas}h {min}min</p>
         {extras > 0 && (
-          <p className="text-[#6B256F]">Horas Extras: {Math.floor(extras / 60)}h {extras % 60}min</p>
+          <p className="text-[#6B256F] dark:text-purple-300">
+            Horas Extras: {Math.floor(extras / 60)}h {extras % 60}min
+          </p>
         )}
       </div>
     );
@@ -196,6 +202,6 @@ const CustomTooltip = ({ active, payload, label }) => {
 const Legenda = ({ cor, texto }) => (
   <div className="flex items-center gap-1">
     <span className="w-3 h-3 rounded-full" style={{ backgroundColor: cor }} />
-    <span className="text-gray-600">{texto}</span>
+    <span className="text-gray-600 dark:text-gray-300">{texto}</span>
   </div>
 );

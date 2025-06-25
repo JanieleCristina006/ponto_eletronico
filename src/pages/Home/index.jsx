@@ -1,16 +1,16 @@
-// React
+
 import React, { useEffect, useRef, useState } from "react";
 
-// Firebase
+
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../FirebaseConection";
 import { GraficoResumo } from "../../components/GraficoPizza";
 
-// Navegação
+
 import { useNavigate } from "react-router-dom";
 
-// Bibliotecas externas
+
 import {
   FiXCircle,
   FiTrendingUp,
@@ -24,13 +24,12 @@ import {
 
 import Logo from "../../assets/image.png";
 
-import { CardPontualidade } from "../../components/CardPontualidade";
-import { CardAtrasos } from "../../components/CardAtrasos";
 import { CardProgressoJornada } from "../../components/CardProgressoJornada";
 import { CardHorasExtras } from "../../components/CardResumoJornada";
 import { GraficoJornada } from "../../components/GraficoJornada";
 import { Header } from "../../components/Header";
 import { StatusEntradaSaida } from "../../components/StatusEntradaSaida";
+import { Footer } from "../../components/Footer/inde";
 
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -478,11 +477,11 @@ export const Home = () => {
     <>
       
       <div
-       className="flex-1 p-6 pl-8 space-y-6 w-full bg-[#F8FAFC]"
+       className="flex-1 pl-8 space-y-6 w-full  pb-11  dark:bg-slate-800"
       >
       <ToastContainer />
 
-      {/* Header */}
+    
       <Header
         nome={nome === "Visitante" ? "Bem-vindo, visitante!" : nome}
         isAdmin={isAdmin}
@@ -490,66 +489,66 @@ export const Home = () => {
       />
 
 
-      {/* Grid principal responsiva */}
+    
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
-        {/* Card: Pontos do Dia */}
-        <div className="bg-white shadow-md rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 col-span-1 xl:col-span-2 h-full">
-          {/* Texto e pontos */}
-          <div className="flex-1">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">
-              Pontos do Dia {new Date().toLocaleDateString()}
-            </h2>
+        <div className="bg-white dark:bg-gray-900 shadow-md rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 col-span-1 xl:col-span-2 h-full border border-gray-200 dark:border-gray-700 transition-colors">
+  
+  <div className="flex-1">
+    <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
+      Pontos do Dia {new Date().toLocaleDateString()}
+    </h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm text-gray-600">
-              <p className="flex items-center gap-2">
-                <FiLogIn className="text-[#4F46E5]" />
-                Entrada: <span className="font-medium text-gray-800">{pontos?.entrada || "--"}</span>
-              </p>
-              <p className="flex items-center gap-2">
-                <FiSun className="text-yellow-500" />
-                Início Almoço: <span className="font-medium text-gray-800">{pontos.inicioAlmoco || "--"}</span>
-              </p>
-              <p className="flex items-center gap-2">
-                <FiSun className="text-yellow-500" />
-                Volta Almoço: <span className="font-medium text-gray-800">{pontos.voltaAlmoco || "--"}</span>
-              </p>
-              <p className="flex items-center gap-2">
-                <FiCoffee className="text-orange-500" />
-                Início Café: <span className="font-medium text-gray-800">{pontos.inicioCafe || "--"}</span>
-              </p>
-              <p className="flex items-center gap-2">
-                <FiCoffee className="text-orange-500" />
-                Fim Café: <span className="font-medium text-gray-800">{pontos.voltaCafe || "--"}</span>
-              </p>
-              <p className="flex items-center gap-2">
-                <FiLogOut className="text-red-500" />
-                Saída: <span className="font-medium text-gray-800">{pontos.saida || "--"}</span>
-              </p>
-            </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm text-gray-600 dark:text-gray-300">
+      <p className="flex items-center gap-2">
+        <FiLogIn className="text-[#4F46E5]" />
+        Entrada: <span className="font-medium text-gray-800 dark:text-white">{pontos?.entrada || "--"}</span>
+      </p>
+      <p className="flex items-center gap-2">
+        <FiSun className="text-yellow-500" />
+        Início Almoço: <span className="font-medium text-gray-800 dark:text-white">{pontos.inicioAlmoco || "--"}</span>
+      </p>
+      <p className="flex items-center gap-2">
+        <FiSun className="text-yellow-500" />
+        Volta Almoço: <span className="font-medium text-gray-800 dark:text-white">{pontos.voltaAlmoco || "--"}</span>
+      </p>
+      <p className="flex items-center gap-2">
+        <FiCoffee className="text-orange-500" />
+        Início Café: <span className="font-medium text-gray-800 dark:text-white">{pontos.inicioCafe || "--"}</span>
+      </p>
+      <p className="flex items-center gap-2">
+        <FiCoffee className="text-orange-500" />
+        Fim Café: <span className="font-medium text-gray-800 dark:text-white">{pontos.voltaCafe || "--"}</span>
+      </p>
+      <p className="flex items-center gap-2">
+        <FiLogOut className="text-red-500" />
+        Saída: <span className="font-medium text-gray-800 dark:text-white">{pontos.saida || "--"}</span>
+      </p>
+    </div>
 
-            <button
-              onClick={baterPonto}
-              className="mt-6 inline-flex items-center gap-2 bg-[#4F46E5] hover:bg-indigo-700 transition-colors text-white font-medium py-2 px-4 rounded-lg shadow cursor-pointer"
-            >
-              <FiClock className="w-5 h-5" />
-              Registrar Ponto
-            </button>
-          </div>
+    <button
+      onClick={baterPonto}
+      className="mt-6 inline-flex items-center gap-2 bg-[#4F46E5] hover:bg-indigo-700 transition-colors text-white font-medium py-2 px-4 rounded-lg shadow cursor-pointer"
+    >
+      <FiClock className="w-5 h-5" />
+      Registrar Ponto
+    </button>
+  </div>
 
-          {/* Ilustração */}
-          <div className="hidden md:block w-36 xl:w-52">
-            <img
-              src={Logo}
-              alt="Ilustração ponto eletrônico"
-              className="w-full h-auto rounded-xl"
-            />
-          </div>
-        </div>
+  {/* Ilustração */}
+  <div className="hidden md:block w-36 xl:w-52">
+    <img
+      src={Logo}
+      alt="Ilustração ponto eletrônico"
+      className="w-full h-auto rounded-xl"
+    />
+  </div>
+</div>
+
 
         
-          {/* Card lateral de resumos */}
+        
 
-                  {/* Card lateral de resumos com grid interno para melhor organização */}
+         
           <GraficoResumo
               nome={nome}
               diasPontuais={nome === "Visitante" ? 0 : diasPontuais}
@@ -560,39 +559,41 @@ export const Home = () => {
 
       </div>
 
-      {/* Cards Detalhados */}
-    {/* Cards Detalhados */}
-{pontos ? (
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    <StatusEntradaSaida
-      pontos={pontos}
-      compararEntradaSaida={compararEntradaSaida}
-      formatarMinutosParaHoraEmin={formatarMinutosParaHoraEmin}
-    />
 
-    <CardProgressoJornada
-      tempoTrabalhadoMin={
-        pontos.saida
-          ? calcularTotalTrabalhado(pontos)
-          : tempoTrabalhadoAtual || 0
-      }
-    />
+      {pontos ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <StatusEntradaSaida
+            pontos={pontos}
+            compararEntradaSaida={compararEntradaSaida}
+            formatarMinutosParaHoraEmin={formatarMinutosParaHoraEmin}
+          />
 
-    <CardHorasExtras
-      totalMinutos={horasExtrasDoMes}
-      formatarMinutos={formatarMinutos}
-    />
-  </div>
-) : (
-  <div className="text-center text-gray-500 col-span-full">
-    Carregando dados do ponto...
-  </div>
-)}
+          <CardProgressoJornada
+            tempoTrabalhadoMin={
+              pontos.saida
+                ? calcularTotalTrabalhado(pontos)
+                : tempoTrabalhadoAtual || 0
+            }
+          />
 
+              <CardHorasExtras
+                totalMinutos={horasExtrasDoMes}
+                formatarMinutos={formatarMinutos}
+              />
+        </div>
+      ) : (
+        <div className="text-center text-gray-500 col-span-full">
+          Carregando dados do ponto...
+        </div>
+      )}
 
-      {/* Gráfico Jornada Semanal */}
       <GraficoJornada dados={dadosGrafico} />
+    
+    
+      
     </div>
+
+     <Footer />
     </>
   );
 };

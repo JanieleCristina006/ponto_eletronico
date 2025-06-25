@@ -85,7 +85,8 @@ export const Login = () => {
         }}
       />
 
-      <div className="min-h-screen bg-gradient-to-tr from-[#4f46e5] to-[#0ea5e9] flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gradient-to-tr from-[#1f2937] to-[#0f172a] flex items-center justify-center px-4">
+
         <div className="flex flex-col md:flex-row w-full max-w-4xl bg-white shadow-2xl rounded-3xl overflow-hidden">
 
           {/* Lado da ilustração */}
