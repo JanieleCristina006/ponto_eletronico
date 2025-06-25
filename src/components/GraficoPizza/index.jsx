@@ -41,15 +41,15 @@ export const GraficoResumo = ({ diasPontuais, diasAtrasados, totalFaltas }) => {
             axisLine={{ stroke: '#E2E8F0' }}
           />
 
-         <Tooltip
+          <Tooltip
   content={({ payload }) => {
     if (!payload || !payload.length) return null;
 
     return (
-      <div className="bg-white rounded-lg shadow-md p-3 border border-gray-300 text-sm text-gray-800 space-y-1">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-3 border border-gray-300 dark:border-gray-700 text-sm text-gray-800 dark:text-white space-y-1">
         {payload.map((item, index) => (
           <div key={index} className="flex justify-between gap-2">
-            <span>{item.name}:</span>
+            <span>{item.payload.name}:</span>
             <span>{item.value} dia{item.value !== 1 ? 's' : ''}</span>
           </div>
         ))}
@@ -58,6 +58,7 @@ export const GraficoResumo = ({ diasPontuais, diasAtrasados, totalFaltas }) => {
   }}
   cursor={{ fill: 'rgba(100,116,139,0.05)' }}
 />
+
 
 
 
